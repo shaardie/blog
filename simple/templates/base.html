@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="{{ DEFAULT_LANG }}">
+<head>
+        {% block head %}
+        <title>{% block title %}{{ SITENAME }}{% endblock title %}</title>
+        <meta charset="utf-8" />
+        <link rel="stylesheet" href="{{ SITEURL }}/{{ THEME_STATIC_DIR }}/css/{{ CSS_FILE }}" />
+        {% endblock head %}
+</head>
+
+<body>
+        <header><h1><a href="{{ SITEURL }}/">{{ SITENAME }}</a></h1></header>
+        <nav><ul>
+        {% for title, link in MENUITEMS %}
+            <li><a href="{{ link }}">{{ title }}</a></li>
+        {% endfor %}
+        {% if DISPLAY_PAGES_ON_MENU %}
+          {% for p in PAGES %}
+            <li><a href="{{ SITEURL }}/{{ p.url }}">{{ p.title }}</a></li>
+          {% endfor %}
+        {% endif %}
+        {% if DISPLAY_CATEGORIES_ON_MENU %}
+          {% for cat, null in categories %}
+            <li><a href="{{ SITEURL }}/{{ cat.url }}">{{ cat }}</a></li>
+          {% endfor %}
+        {% endif %}
+        </ul></nav>
+        {% block content %}
+        {% endblock %}
+        <footer>
+            This is the Weblog of <a href="mailto:{{ EMAIL }}">{{ AUTHOR }}</a>. Proudly powered by <a href="http://getpelican.com/">Pelican</a>.
+        </footer>
+</body>
+</html>
