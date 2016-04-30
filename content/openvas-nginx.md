@@ -1,7 +1,7 @@
 title: Deploy gsad behind an an nginx proxy
 category: OpenVAS
 author: Benoît Allard
-date: 2016-03-03-15-00
+date: 2016-04-30
 tags: OpenVAS, NGINX
 status:  published
 
