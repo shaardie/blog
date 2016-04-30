@@ -14,6 +14,9 @@ space travel, mathematics, boxing and network policy.
 
 Also I like penguins.
 
+Not all articles in this blog are from myself, since I like also publish for
+other people who have to say something interesting
+
 ## Education
 
  * **2014:** Master's Degree in Mathematics from the University of Osnabrück
