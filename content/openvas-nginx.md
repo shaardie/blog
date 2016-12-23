@@ -29,13 +29,6 @@ You are at the right place, as this article will take you through the
 installation of the gsad service, and will leave the serving of static assets
 to the experts.
 
-A last word of caution before we start though: the various features documented
-here relies on patches for the **next major release**. This means that as the
-moment of this writing, you will need either a fresh checkout or a *beta*
-tarball
-([6.1-beta4](http://wald.intevation.org/frs/download.php/2325/greenbone-security-assistant-6.1+beta4.tar.gz)
-is the currently available one).
-
 Rebuild the service
 -------------------
 
@@ -54,9 +47,8 @@ done for this part.
 Give the right parameters to the gsad service
 ---------------------------------------------
 
-The following step is about disabling all the additional features from the gsad
-like redirection (80 -\> 443) and the TLS negotiation. The `--no-redirect` and
-`--http-only` parameters are there for that purpose.
+The following step is about disabling the TLS negotiation. The `--http-only`
+parameters is there for that purpose.
 
 Additionally, we will use a unix socket to communicate between our proxy and
 the gsad service. We use for that the `--unix-socket=/var/run/gsad.sock`
@@ -147,7 +139,7 @@ Files
 
     [Service]
     Type=simple
-    ExecStart=/usr/local/sbin/gsad --foreground --no-redirect --http-only --unix-socket=/var/run/gsad.sock
+    ExecStart=/usr/local/sbin/gsad --foreground --http-only --unix-socket=/var/run/gsad.sock
     Environment=LD_LIBRARY_PATH=/usr/local/lib
     Restart=always
 
