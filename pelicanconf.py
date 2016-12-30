@@ -34,3 +34,6 @@ THEME = 'blue-penguin'
 STATIC_PATHS = ['images', 'files']
 
 RELATIVE_URLS = True
+
+PLUGIN_PATHS = ["plugins"]
+PLUGINS = ["render_math"]
