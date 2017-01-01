@@ -12,12 +12,12 @@ Some time ago I was working with Go and was missing the concept of set-like
 objects like I had in
 [Python](https://docs.python.org/3/tutorial/datastructures.html#sets). After
 some very very short investigation I found an article about [go maps in
-action][gomapsinaction] which was describing how to
-build such sets very simple by using maps.
+action][gomapsinaction] which was describing how to build such sets very simple
+by using maps.
 
 Inspired by that, I was thinking about the concept of sets in programming
-languages and realized that all the sets were defined explicit by their
-elements. This is in general a good idea, since it makes such sets very fast
+languages and realized that all the sets were defined explicitly by their
+elements. This is, in general, a good idea, since it makes such sets very fast
 and leads to a very easy structure definition.
 
 But I wanted to have an implementation of sets which was more like humans
@@ -30,7 +30,7 @@ This article is about the steps that followed.
 ## Finite Sets
 
 To begin with a set data structure, I was first implementing a struct set
-defined explicit by the elements. I followed the [go maps in
+defined explicitly by the elements. I followed the [go maps in
 action][gomapsinaction] article I mentioned earlier.
 
     :::go
@@ -49,8 +49,8 @@ contained in the set or not.
 Why this function returns a tuple of boolean and error although this error is
 obviously never set, will be explained later.
 
-Also I implemented the possibility to count the element of a set and a helper
-function to create a explicit list of a function to make iteration a lot
+Also, I implemented the possibility to count the element of a set and a helper
+function to create an explicit list of a function to make iteration a lot
 easier.
 
     :::go
@@ -82,19 +82,19 @@ easier.
         return list, nil
     }
 
-Again here are some errors return which are always `nil`. Again, it will be
+Again here is returned some errors which are always `nil`. Again, it will be
 explained later.
 
 ## Infinite Sets
 
 Now after I had implemented the finite sets, I wanted to work with infinite
 sets, but defining infinite sets explicit via the elements is obviously
-impossible. Mathematicians which are using pen and paper to define sets would
-for example define the set of all integers which are divisible by 10 like this
+impossible. Mathematicians which are using pen and paper to define sets would,
+for example, define the set of all integers which are divisible by 10 like this
 
 $$\{ n \in \Bbb{N} : n \mod 10 = 0 \}$$
 
-So my idea was to define the infinite sets in an equal way and define a
+So my idea was to define the infinite sets in an equal way and define an
 infinite set via a function which describes which elements are contained. So I
 defined them as followed
 
@@ -110,7 +110,7 @@ defined them as followed
 I have to admit that this definition is not very practical and very generic,
 but this is also the case by the definition of sets in math. So it fits.
 
-Also you can see that this struct can not only hold infinite sets but also
+Also, you can see that this struct can not only hold infinite sets but also
 finite sets as well. There are no real limits to the defining function at all.
 
 ## The Interface
@@ -119,7 +119,7 @@ So now we have two different definitions of sets. To be able to use both of
 them the same way and be able for example to create a union from a finite set
 defined by `elementSet` and an infinite set defined by `functionSet`, I created
 an interface for these implementations. Also after defining an interface we can
-add other definitions of sets very easily as well. It's Go right?
+add other definitions of sets very easily as well. It's Go, right?
 
     :::go
     type Set interface {
@@ -135,8 +135,8 @@ define a list of elements explicitly. I solved this by implementing some dummy
 functions for these which only have `err != nil`.
 
 To make things easier I added a function to the interface to see if you are
-working with a set implementing `Cardinality()` and `List()` or not. So
-therefor the distinction is not any longer between infinite and finite sets,
+working with a set implementing `Cardinality()` and `List()` or not. So,
+therefore, the distinction is not any longer between infinite and finite sets,
 but countable and uncountable sets.
 
     :::go
@@ -147,9 +147,9 @@ but countable and uncountable sets.
         List() ([]interface{}, error)
     }
 
-Now it should be clear why there are some error in returns which are always
-`nil` in the previous sections. This is to fit the interface which is written
-much more generic than needed for the two existing implementations.
+Now it should be clear why there is returned some errors which are always `nil`
+in the previous sections. This is to fit the interface which is written much
+more generic than needed for the two existing implementations.
 
 ## Adapt Structs to fit the Set Interface
 
@@ -194,7 +194,7 @@ library.
 ### Creating Sets
 
 To be able to create sets I added two functions which simply takes either an
-explicit list of a function and create a `elementSet` or `functionSet` out of
+explicit list of a function and create an `elementSet` or `functionSet` out of
 it.
 
     :::go
@@ -213,12 +213,12 @@ it.
 ### Intersecting Sets
 
 One of the most basic operation on sets is to intersect them with each other.
-Due the possibility to differ countable and not countable sets, we are able to
-distinct two different situation.
+Due the possibility to differ countable sets and not countable sets, we are
+able to distinct two different situations.
 
 #### One countable Set
 
-Obviously if one of the sets to intersect is countable the intersection should
+Obviously, if one of the sets to intersect is countable the intersection should
 also be countable as a subset of a countable set. The following function is to
 create such an intersection. Since intersections are commutative, let's assume
 that the set `a` is countable.
@@ -247,7 +247,7 @@ that the set `a` is countable.
 #### No countable Set
 
 If both sets to intersect are not countable the intersection *could* be
-implemented as a countable set, but this is very hard to proof and therefor it
+implemented as a countable set, but this is very hard to proof and therefore it
 is defined as the combination of the defining `Contains(x interface{})`
 functions.
 
@@ -294,10 +294,9 @@ Other functions are following the same chain of thoughts.
 
 To show what you can do with this library here some examples.
 
-
 ### Natural numbers
 
-We can now for example define the set of natural numbers as a subset of all
+We can now, for example, define the set of natural numbers as a subset of all
 strings. It is a little bit like you see it as a human.
 
     :::go
@@ -319,12 +318,12 @@ strings. It is a little bit like you see it as a human.
         return regexp.MatchString("0|[1-9][0-9]*", str)
     })
 
-Also we define a set of very evil numbers.
+Also, we define a set of very evil numbers.
 
     :::go
     var evilNumbers = set.CreateFromArray([]interface{}{"1", "3", "21", "999"}
 
-Now we can create the subset of the natural numbers which are good by creating
+Now we can create the subset of the natural numbers which are good for creating
 the difference.
 
     :::go
@@ -377,9 +376,9 @@ Here the full example
 Creating finite and infinite sets in Go was canonical and due to the interface
 logic it is easy to expand this further with more complex solutions as well.
 
-Creating other math related packages for example a package of different number
-set would something I will definitely do. Also creating some kind of algebra on
-top of these sets is something very interesting.
+Creating other math related packages, for example, a package of different
+number set would something I will definitely do. Also creating some kind of
+algebra on top of these sets is something very interesting.
 
 [gomapsinaction]: https://blog.golang.org/go-maps-in-action
 [godoc]: https://godoc.org/github.com/shaardie/set
