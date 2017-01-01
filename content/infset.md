@@ -1,6 +1,6 @@
 title: Infinite Sets in Go
 category: Golang
-date: 2016-12-30-00-00
+date: 2017-01-01
 tags: Golang
 status: published
 
@@ -38,8 +38,7 @@ action][gomapsinaction] article I mentioned earlier.
         elements map[interface{}]bool
     }
 
-Now I could the most important function on sets which defines if an element is
-contained in the set or not.
+The most basic method defines which elements are contained in the set.
 
     :::go
     func (set elementSet) Contains(x interface{}) (bool, error) {
