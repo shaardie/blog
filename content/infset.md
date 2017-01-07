@@ -1,6 +1,6 @@
 title: Infinite Sets in Go
 category: Golang
-date: 2017-01-01
+date: 2017-01-07
 tags: Golang
 status: published
 
@@ -29,8 +29,8 @@ This article is about the steps that followed.
 
 ## Finite Sets
 
-To begin with a set data structure, I was first implementing a struct set
-defined explicitly by the elements. I followed the [go maps in
+To begin with a set data structure, I was first implementing a struct `set`
+defined explicitly by its elements. I followed the [go maps in
 action][gomapsinaction] article I mentioned earlier.
 
     :::go
@@ -48,7 +48,7 @@ The most basic method defines which elements are contained in the set.
 Why this function returns a tuple of boolean and error although this error is
 obviously never set, will be explained later.
 
-Also, I implemented the possibility to count the element of a set and a helper
+Also, I implemented the possibility to count the elements of a set and a helper
 function to create an explicit list of a function to make iteration a lot
 easier.
 
@@ -81,13 +81,13 @@ easier.
         return list, nil
     }
 
-Again here is returned some errors which are always `nil`. Again, it will be
-explained later.
+Again here are some errors returned which are always `nil`. And again, this
+will be explained later.
 
 ## Infinite Sets
 
-Now after I had implemented the finite sets, I wanted to work with infinite
-sets, but defining infinite sets explicit via the elements is obviously
+After I had implemented the finite sets, I wanted to work with infinite
+sets, but defining infinite sets explicitly via the elements is obviously
 impossible. Mathematicians which are using pen and paper to define sets would,
 for example, define the set of all integers which are divisible by 10 like this
 
@@ -127,7 +127,7 @@ add other definitions of sets very easily as well. It's Go, right?
         List() ([]interface{}, error)
     }
 
-The problem is now that we can not define `Cardinality()` and `List()` for
+Now the problem is that we can not define `Cardinality()` and `List()` for
 `functionSet` that easy, since this information are very hard to extract from
 the defining function and for real infinite set it would be even impossible to
 define a list of elements explicitly. I solved this by implementing some dummy
@@ -193,7 +193,7 @@ library.
 ### Creating Sets
 
 To be able to create sets I added two functions which simply takes either an
-explicit list of a function and create an `elementSet` or `functionSet` out of
+explicit list or a function and create an `elementSet` or `functionSet` out of
 it.
 
     :::go
@@ -212,7 +212,7 @@ it.
 ### Intersecting Sets
 
 One of the most basic operation on sets is to intersect them with each other.
-Due the possibility to differ countable sets and not countable sets, we are
+Due to the possibility to differ countable sets and not countable sets, we are
 able to distinct two different situations.
 
 #### One countable Set
@@ -322,7 +322,7 @@ Also, we define a set of very evil numbers.
     :::go
     var evilNumbers = set.CreateFromArray([]interface{}{"1", "3", "21", "999"}
 
-Now we can create the subset of the natural numbers which are good for creating
+Now we can create the subset of the natural numbers which are good by creating
 the difference.
 
     :::go
@@ -376,7 +376,7 @@ Creating finite and infinite sets in Go was canonical and due to the interface
 logic it is easy to expand this further with more complex solutions as well.
 
 Creating other math related packages, for example, a package of different
-number set would something I will definitely do. Also creating some kind of
+number set is something I would definitely do. Also creating some kind of
 algebra on top of these sets is something very interesting.
 
 [gomapsinaction]: https://blog.golang.org/go-maps-in-action
