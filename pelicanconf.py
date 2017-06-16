@@ -32,6 +32,9 @@ SOCIAL = (('Twitter', 'https://twitter.com/haardiek'),
 THEME = 'blue-penguin'
 
 STATIC_PATHS = ['images', 'files']
+EXTRA_PATH_METADATA = {
+    'files/favicon.ico': {'path': 'favicon.ico'}
+}
 
 RELATIVE_URLS = True
 
