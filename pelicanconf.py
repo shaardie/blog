@@ -16,13 +16,10 @@ TIMEZONE = 'Europe/Berlin'
 
 DEFAULT_LANG = u'en'
 
-ARCHIVES_URL = 'archives'
-ARCHIVES_SAVE_AS = 'archives/index.html'
 AUTHORS_URL = 'authors'
 AUTHORS_SAVE_AS = 'authors/index.html'
 
 MENU_INTERNAL_PAGES = (
-    ('Archives', ARCHIVES_URL, ARCHIVES_SAVE_AS),
     ('Authors', AUTHORS_URL, AUTHORS_SAVE_AS),
 )
 
