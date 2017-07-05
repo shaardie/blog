@@ -24,7 +24,8 @@ MENU_INTERNAL_PAGES = (
 )
 
 SOCIAL = (('Twitter', 'https://twitter.com/haardiek'),
-          ('Github', 'https://github.com/shaardie'))
+          ('Github', 'https://github.com/shaardie'),
+          ('Bitbucket', 'https://bitbucket.org/shaardie/'))
 
 THEME = 'blue-penguin'
 

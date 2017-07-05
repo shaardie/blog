@@ -36,9 +36,9 @@ other people who have to say something interesting
  * **Mathematics:** Numerical Mathematics, Applied Analysis
  * **Computer Science:** Software Development, Quality Assurance, Cryptographic
    Methods, Optimization Algorithms
- * **Programming Languages:** Mostly Python, Shell and C
- * **GNU/Linux:** Mostly Debian and Debian Derivatives
- * **Software:** Vim, Git, Mercurial, Zsh, OpenVAS, GnuPG, Octave, LaTex
+ * **Programming Languages:** Mostly Python, Golang and Bash
+ * **GNU/Linux:** Debian, Arch Linux and Fedora
+ * **Software:** Vim, Git, Mercurial, OpenVAS, GnuPG, Octave, LaTex
 
 ## Conferences
 
@@ -53,6 +53,11 @@ other people who have to say something interesting
 
  * [32nd Chaos Communication Congress](https://events.ccc.de/category/32c3/) in
    Hamburg, Germany, 2015
+
+ * [FrOSCon](https://programm.froscon.de/2016/) in Bonn, Germany, 2016
+
+ * [33nd Chaos Communication Congress](https://events.ccc.de/category/33c3/) in
+   Hamburg, Germany, 2016
 
 ## Interests
 
@@ -75,3 +80,4 @@ other people who have to say something interesting
         * [Download]({filename}/files/sven.haardiekatgreenbone.net.key)
  * **Twitter:** [@haardiek](https://twitter.com/haardiek)
  * **Github:** [shaardie](https://github.com/shaardie)
+ * **Bitbucket:** [shaardie](https://bitbucket.com/shaardie)
