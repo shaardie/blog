@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>blog.haardiek.org - Debian</title><link href="http://blog.haardiek.org/" rel="alternate"></link><link href="http://blog.haardiek.org/feeds/debian.atom.xml" rel="self"></link><id>http://blog.haardiek.org/</id><updated>2016-01-20T00:00:00+01:00</updated><entry><title>Setup a Debian Server</title><link href="http://blog.haardiek.org/setup-a-debian-server.html" rel="alternate"></link><published>2016-01-20T00:00:00+01:00</published><updated>2016-01-20T00:00:00+01:00</updated><author><name>Sven Haardiek</name></author><id>tag:blog.haardiek.org,2016-01-20:/setup-a-debian-server.html</id><summary type="html">&lt;p&gt;Some time ago I decided to reinstall my root server from
+&lt;a href="https://www.netcup.de"&gt;Netcup&lt;/a&gt;. I chose &lt;a href="https://www.debian.org"&gt;Debian
+Jessie&lt;/a&gt; as the operating system, because i have the
+most experience with Debian.&lt;/p&gt;
+&lt;p&gt;In the following I will give a guide to my setup.&lt;/p&gt;
+&lt;h2&gt;Base Image&lt;/h2&gt;
+&lt;p&gt;It is possible to use the &lt;a href="https://www.vservercontrolpanel.de/Home"&gt;Netcup Server Control …&lt;/a&gt;&lt;/p&gt;</summary><content type="html">&lt;p&gt;Some time ago I decided to reinstall my root server from
+&lt;a href="https://www.netcup.de"&gt;Netcup&lt;/a&gt;. I chose &lt;a href="https://www.debian.org"&gt;Debian
+Jessie&lt;/a&gt; as the operating system, because i have the
+most experience with Debian.&lt;/p&gt;
+&lt;p&gt;In the following I will give a guide to my setup.&lt;/p&gt;
+&lt;h2&gt;Base Image&lt;/h2&gt;
+&lt;p&gt;It is possible to use the &lt;a href="https://www.vservercontrolpanel.de/Home"&gt;Netcup Server Control
+Panel&lt;/a&gt; to install the base system on
+your server. There you can easily click through the different options. Of
+course you have to use the minimal Debian Jessie installation.  After that you
+can choose between different predefined partitions. If you have no special
+wishes, choose one great partition. So you can use the whole space without
+having to partition something manually. At least use the mail notification. So
+after your server is installed you got a mail with the long randomly set root
+password.&lt;/p&gt;
+&lt;p&gt;You can log in with this password using the command&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;ssh root@&amp;lt;hostname&amp;gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;on your preferred terminal emulator and take a first look at your fresh
+installed operating system.&lt;/p&gt;
+&lt;p&gt;As a first step you should change the root password by using the&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;passwd
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;command.&lt;/p&gt;
+&lt;h2&gt;User&lt;/h2&gt;
+&lt;p&gt;In my opinion it is not a good idea to use the &lt;em&gt;root&lt;/em&gt; user to configure a
+server. So you should create a new user &lt;em&gt;username&lt;/em&gt; with&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;adduser &amp;lt;username&amp;gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;You can use this user to configure also services and other stuff so you should
+add this user to the group sudo. The minimal image of netcup do not have sudo
+installed, so you have to install it manually&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;apt-get install sudo
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;and then add &lt;em&gt;username&lt;/em&gt; to the group sudo&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;adduser &amp;lt;username&amp;gt; sudo
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now you can log out your server by using&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;exit
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;or using &lt;code&gt;Ctrl-D&lt;/code&gt; and log in again with your user&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;ssh &amp;lt;username&amp;gt;@hostname
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;A password enabled log in is a security issue, so you should configure the SSH
+server to disable it as described next.&lt;/p&gt;
+&lt;h2&gt;SSH Configuration&lt;/h2&gt;
+&lt;p&gt;So now we want to configure SSH. First we create a SSH key on the computer we
+want to connect to the server.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;ssh-keygen -t rsa -b 4096
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now copy the output of&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;cat ~/.ssh/id_rsa.pub
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;to the file &lt;code&gt;/home/&amp;lt;username&amp;gt;/.ssh/authorized_keys&lt;/code&gt;. If the directory
+&lt;code&gt;/home/&amp;lt;username&amp;gt;/.ssh&lt;/code&gt; does not exists, you can create it by executing&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;mkdir /home/&amp;lt;username&amp;gt;/.ssh
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now you can check, if you can log in the server without using a password
+(except the password you set for the ssh key).&lt;/p&gt;
+&lt;p&gt;Since the ssh keys are generated during the installation done by netcup, you should renew them with&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;sudo rm /etc/ssh/ssh_host_*
+sudo dpkg-reconfigure openssh-server
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Edit &lt;code&gt;/etc/ssh/sshd_config&lt;/code&gt; with your favorite editor (vim, nano, ...) and set &lt;code&gt;PermitRootLogin&lt;/code&gt; and PasswordAuthentication &lt;code&gt;no&lt;/code&gt;. To enable these changes restart SSH by&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;systemctl restart ssh
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h2&gt;Firewall&lt;/h2&gt;
+&lt;p&gt;And last you should install a firewall. For simple configuration I would choose
+&lt;a href="https://launchpad.net/ufw"&gt;ufw&lt;/a&gt;, because it is very easy to configure. So to install ufw use&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;sudo apt-get install ufw
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now you should configure the firewall. As a simple setup i would recommend a firewall configuration that denies per default all communication, enable the logging and of course enable communication via ssh. This configuration is achieved by the following commands&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;sudo ufw default deny
+sudo ufw logging on
+sudo ufw allow ssh/tcp
+sudo ufw enable
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h2&gt;Final Words&lt;/h2&gt;
+&lt;p&gt;Now you should have a basic installation of a debian server to have fun with.
+So long...&lt;/p&gt;</content><category term="Debian"></category><category term="Server"></category></entry></feed>

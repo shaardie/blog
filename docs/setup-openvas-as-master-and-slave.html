@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        <meta charset="utf-8" />
+    <title>blog.haardiek.org | Setup OpenVAS as Master and Slave</title>
+    <link rel="shortcut icon" type="image/png" href="./favicon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="./favicon.ico">
+    <link href="http://blog.haardiek.org/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="blog.haardiek.org Full Atom Feed" />
+    <link href="http://blog.haardiek.org/feeds/openvas.atom.xml" type="application/atom+xml" rel="alternate" title="blog.haardiek.org Categories Atom Feed" />
+    <link rel="stylesheet" href="./theme/css/screen.css" type="text/css" />
+    <link rel="stylesheet" href="./theme/css/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="./theme/css/print.css" type="text/css" media="print" />
+    <meta name="generator" content="Pelican" />
+
+    <meta name="keywords" content="OpenVAS" />
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href=".">Home</a></li>
+                <li><a href="./authors">Authors</a></li>
+            </ul>
+        </nav>
+        <div class="header_box">
+            <h1><a href=".">blog.haardiek.org</a></h1>
+        </div>
+    </header>
+    <div id="wrapper">
+        <div id="content">            <h4 class="date">Jun 17, 2017</h4>
+
+            <article class="post">
+                <h2 class="title">
+                    <a href="./setup-openvas-as-master-and-slave.html" rel="bookmark" title="Permanent Link to &quot;Setup OpenVAS as Master and Slave&quot;">Setup OpenVAS as Master and Slave</a>
+                </h2>
+
+                <p>Did you ever want to connect your different <a href="http://openvas.org/">OpenVAS</a>
+installations and have all information about the vulnerabilities one one spot?
+Or do you have very strict network policies and want scan a separate
+sub-network, but do not want to browse your vulnerability in this sub-network?
+Well, this is possible by using one OpenVAS installation as a <strong>Master</strong> and
+the other ones as <strong>OMP Slaves</strong>.</p>
+<h2>Setup OpenVAS Installations</h2>
+<p>Before diving into the master-slave configuration, here a brief description how
+I setup my OpenVAS installations.</p>
+<p>Since OpenVAS is mostly developed on <a href="https://www.debian.org/">Debian</a>, I used
+Debian Jessie as OS for the OpenVAS installations.</p>
+<p>I installed OpenVAS 9, which is the latest stable version of OpenVAS at the
+moment, but I do not install the Greenbone Security Assistant on the Slave.  I
+do not want to connect to the slave via the Web interface, so I do not need it.</p>
+<p>After installation, I did the casual things you have to do with a new OpenVAS
+installation.  I set up the <a href="https://redis.io/">Redis Server</a> using the
+configuration from OpenVAS, generated certificates and private keys(
+Although I do not need the certificate and private key for Greenbone Security
+Assistant on the slave side, I was lazy and used <code>openvas-manage-certs -a</code> as
+well on the master as on the slave) and downloaded the
+<a href="https://scap.nist.gov/">SCAP</a>,
+<a href="https://en.wikipedia.org/wiki/Computer_emergency_response_team">CERT</a> and
+<a href="http://www.openvas.org/openvas-nvt-feed.html">NVT</a> data on both Master and
+Slave.</p>
+<p>Since I do not want to start the daemons on the master and sensors manually, I
+created some <a href="https://www.freedesktop.org/wiki/Software/systemd/">Systemd</a>
+service files. If you are interested, I stored them
+<a href="https://gist.github.com/shaardie/19ed2fcc6187d3663014cdbcae579e02">here</a>.
+You are free to use them.</p>
+<p>That is my setup. So now let us talk about master-slave configuration.</p>
+<h2>On the Slave Side</h2>
+<p>As you probably already noticed, I used different Systemd service files for
+the OpenVAS Manager on the Master and on the Slave side. This is because I want
+to directly connect to OpenVAS Manager on the slave and therefore it has
+to listen globally. This can be achieved by starting the OpenVAS Manager with
+<code>listen=0.0.0.0</code>. A <code>netstat</code> call later we also know it listens on Port
+<strong>9390</strong>.</p>
+<div class="highlight"><pre><span></span>openvas-slave$ netstat -tulpen
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       User       Inode       PID/Program name
+...
+tcp        0      0 0.0.0.0:9390            0.0.0.0:*               LISTEN      0          11430       401/openvasmd
+...
+</pre></div>
+
+
+<p>The OpenVAS Manager authenticate itself using a certificate. To later be able
+to verify this communication we need to know this certificate. The certificate
+the OpenVAS Manager uses can be found under
+<code>${CMAKE_INSTALL_PREFIX}"/var/lib/openvas/CA/servercert.pem</code>.
+So without changing the CMake variables it can be found under
+<code>/usr/local/var/lib/openvas/CA/servercert.pem</code>. Save this file somewhere to
+be able to use it on the master side later.</p>
+<p>We also need a OpenVAS Manager user to connect to. Therefore we simply create
+one</p>
+<div class="highlight"><pre><span></span>openvas-slave$ openvasmd --create-user slave
+User created with password &#39;263383eb-3234-4114-b3bb-f6b78e95982d&#39;.
+</pre></div>
+
+
+<p>Now we can move on to the master.</p>
+<h2>On the Master Side</h2>
+<p>Login to the Greenbone Security Assistant (If you do not have a user to connect
+to it, now is the time to create one) and go to <em>Configuration -&gt; Scanners</em>.</p>
+<p><img alt="Scanners Configuration Location" src="./images/openvas-master-sensor/config.png" title="Scanners Configuration location"></p>
+<p>Create a new Scanner using the star symbol. Now you have to fill in the form.
+Here is how the filled in form looked in my installation.</p>
+<p><img alt="New Scanner" src="./images/openvas-master-sensor/new_scanner.png" title="Create new 'OMP Slave' Scanner"></p>
+<ul>
+<li><strong>Host</strong>: Hostname or IP of your Slave</li>
+<li><strong>Port</strong>: <code>9390</code>, as seen in the previous section</li>
+<li><strong>Type</strong>: <code>OMP Slave</code></li>
+<li><strong>CA Certificate</strong>: The certificate you gathered from the slave</li>
+</ul>
+<p>As <strong>Credentials</strong> you have to use the user you created on the slave. You can
+simply use the star symbol again to create it on-the-fly.</p>
+<p><img alt="Slave credentials" src="./images/openvas-master-sensor/credentials.png" title="Create Slave Credentials"></p>
+<p>After you have created your new Slave Scanner, you can use it to scans.</p>
+<p><img alt="Slave Scan" src="./images/openvas-master-sensor/slave_scan.png" title="Create Slave Scan"></p>
+<p>Tada! A slave scan.</p>
+                <div class="clear"></div>
+
+                <div class="info">
+                    <a href="./author/sven-haardiek.html">Sven Haardiek</a>
+                    &nbsp;&middot;&nbsp;<a href="./category/openvas.html" rel="tag">OpenVAS</a>
+                    &nbsp;&middot;
+                    &nbsp;<a href="./tag/openvas.html" class="tags">OpenVAS</a>
+                </div>
+            </article>
+            <div class="clear"></div>
+            <footer>
+                <p>
+                <a href="https://github.com/jody-frankowski/blue-penguin">Blue Penguin</a> Theme
+                &middot;
+                Powered by <a href="http://getpelican.com">Pelican</a>
+                &middot;
+                <a href="./feeds/all.atom.xml" rel="alternate">Atom Feed</a>
+            </footer>
+        </div>
+        <div class="clear"></div>
+    </div>
+</body>
+</html>

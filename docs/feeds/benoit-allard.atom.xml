@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>blog.haardiek.org - Benoît Allard</title><link href="http://blog.haardiek.org/" rel="alternate"></link><link href="http://blog.haardiek.org/feeds/benoit-allard.atom.xml" rel="self"></link><id>http://blog.haardiek.org/</id><updated>2016-04-30T00:00:00+02:00</updated><entry><title>Deploy gsad behind an an nginx proxy</title><link href="http://blog.haardiek.org/deploy-gsad-behind-an-an-nginx-proxy.html" rel="alternate"></link><published>2016-04-30T00:00:00+02:00</published><updated>2016-04-30T00:00:00+02:00</updated><author><name>Benoît Allard</name></author><id>tag:blog.haardiek.org,2016-04-30:/deploy-gsad-behind-an-an-nginx-proxy.html</id><summary type="html">&lt;p&gt;&lt;a href="http://www.openvas.org"&gt;OpenVAS&lt;/a&gt; is a network vulnerability scanner published
+under the &lt;a href="http://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html"&gt;GNU GPLv2&lt;/a&gt;
+license. For those with difficulties to understand all those license legalese,
+this means your freedom is not impacted by this software. This license, allows
+you to do whatever you want with it as long as you do not restraint …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;a href="http://www.openvas.org"&gt;OpenVAS&lt;/a&gt; is a network vulnerability scanner published
+under the &lt;a href="http://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html"&gt;GNU GPLv2&lt;/a&gt;
+license. For those with difficulties to understand all those license legalese,
+this means your freedom is not impacted by this software. This license, allows
+you to do whatever you want with it as long as you do not restraint the freedom
+of others. This includes reading the source code, modifying it, using and
+distributing a modified version. You are just not allowed to distribute it
+under a more restrictive license. All this is allowed for OpenVAS at no
+extra-cost. Proprietary equivalences for OpenVAS includes &lt;em&gt;Nessus&lt;/em&gt; from
+Tenable, or &lt;em&gt;Nexpose&lt;/em&gt; from Rapid7.&lt;/p&gt;
+&lt;p&gt;So, you have been toying with OpenVAS for some time, so far it does fit your
+needs, and you wanted to take it to the next level: deploy it seriously in your
+network. You realised it quickly, the main interface is the gsad, and it is
+web-based. You have been deploying a few web-applications before, so you are
+familiar with the configuration of &lt;a href="http://nginx.org/"&gt;nginx&lt;/a&gt; (or any similar
+proxy), you maybe even have a CDN running somewhere on your network, and you
+could not imagine deploy yet another web-based application without bringing all
+that knowledge you previously gathered into practice once more.&lt;/p&gt;
+&lt;p&gt;You are at the right place, as this article will take you through the
+installation of the gsad service, and will leave the serving of static assets
+to the experts.&lt;/p&gt;
+&lt;h2&gt;Rebuild the service&lt;/h2&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;note&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;This step is not absolutely necessary, but it does not make much sense to
+leave the internal file server (together with its integrated vulnerabilities)
+running if you do not plan to use it.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;The first necessary step is to disable the internal file server of the gsad
+service. To do so, just add the following to your cmake invocation
+&lt;code&gt;-DSERVE_STATIC_ASSETS=0&lt;/code&gt; and rebuild the daemon. Do not forget to at least set
+the &lt;code&gt;CMAKE_BUILD_TYPE&lt;/code&gt; to &lt;code&gt;Release&lt;/code&gt; as well. Just &lt;code&gt;make install&lt;/code&gt;, and you are
+done for this part.&lt;/p&gt;
+&lt;h2&gt;Give the right parameters to the gsad service&lt;/h2&gt;
+&lt;p&gt;The following step is about disabling the TLS negotiation. The &lt;code&gt;--http-only&lt;/code&gt;
+parameters is there for that purpose.&lt;/p&gt;
+&lt;p&gt;Additionally, we will use a unix socket to communicate between our proxy and
+the gsad service. We use for that the &lt;code&gt;--unix-socket=/var/run/gsad.sock&lt;/code&gt;
+parameter. The gsad service will make sure to leave the rights on that socket
+unchanged, so if you need some special ones, just create the socket beforehand,
+and set the permissions on it as you wish. The actual path you use is not
+relevant as long as you give the same one to your proxy configuration.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;note&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;As we do not plan to make any direct file access from the gsad service, it
+does no make much sense to use the &lt;code&gt;--do-chroot&lt;/code&gt; parameter, and as we do not
+need to open any privileged port, the &lt;code&gt;--drop-privilege&lt;/code&gt; one is not necessary
+either. We can already start with lowered privileges.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2&gt;Configure your proxy&lt;/h2&gt;
+&lt;p&gt;Comes the last part: teaching the proxy (in our case, nginx) to communicate
+with the service. Here comest the time where you might want to configure the
+TLS negotiation, or just leave it away if you are in a trusted zone anyway, and
+you do not want to bother with certificates. gsad comes with two &lt;em&gt;faces&lt;/em&gt;, we
+will use here the &lt;code&gt;classic&lt;/code&gt; one. If you compiled your gsad locally, the files
+will be installed under the following path:
+&lt;code&gt;/usr/local/share/openvas/gsa/classic&lt;/code&gt;. Those are the files you will want to
+serve directly. There are three directories in there: &lt;code&gt;js&lt;/code&gt;, &lt;code&gt;css&lt;/code&gt;, and &lt;code&gt;img&lt;/code&gt;.
+For the gsad service, there are at least two extra header fields you will want
+to set via your proxy:&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;X-Real-IP&lt;/code&gt;: OpenVAS will use this IP instead of the IP of the proxy to
+identify the session, and propose some shortcut like in the task creation
+Wizard.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;X-Forwarded-Protocol&lt;/code&gt;: This will be used as the protocol when the redirect URL
+needs to be formed.&lt;/p&gt;
+&lt;p&gt;You might want to set &lt;code&gt;Host&lt;/code&gt; and &lt;code&gt;X-Forwarded-For&lt;/code&gt; as well, but gsad is not
+parsing them (yet ?) at this moment.&lt;/p&gt;
+&lt;p&gt;As a last point, if you are configuring your proxy to serve gsad over
+HTTPS, you probably also want to setup a redirect in your proxy
+configuration as well. I believe the right HTTP code to use here is 301
+Moved Permanently. It will be cached by other proxies, and will only
+create troubles if you ever want to stop delivering the gsad over HTTPS.&lt;/p&gt;
+&lt;h2&gt;Files&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;gsad.conf&lt;/strong&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="nt"&gt;upstream&lt;/span&gt; &lt;span class="nt"&gt;gsa&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt; &lt;span class="err"&gt;server&lt;/span&gt; &lt;span class="n"&gt;unix&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;///&lt;/span&gt;&lt;span class="n"&gt;var&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;run&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;gsad&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sock&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt; &lt;span class="p"&gt;}&lt;/span&gt;
+
+&lt;span class="nt"&gt;server&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+  &lt;span class="n"&gt;listen&lt;/span&gt; &lt;span class="cp"&gt;[&lt;/span&gt;&lt;span class="p"&gt;::&lt;/span&gt;&lt;span class="cp"&gt;]&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;80&lt;/span&gt; &lt;span class="n"&gt;ipv6only&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;off&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+  &lt;span class="err"&gt;return&lt;/span&gt; &lt;span class="err"&gt;301&lt;/span&gt; &lt;span class="n"&gt;https&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="err"&gt;$&lt;/span&gt;&lt;span class="n"&gt;host&lt;/span&gt;&lt;span class="err"&gt;$&lt;/span&gt;&lt;span class="n"&gt;request_uri&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+
+&lt;span class="nt"&gt;server&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+
+  &lt;span class="n"&gt;listen&lt;/span&gt; &lt;span class="cp"&gt;[&lt;/span&gt;&lt;span class="p"&gt;::&lt;/span&gt;&lt;span class="cp"&gt;]&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;443&lt;/span&gt; &lt;span class="n"&gt;ssl&lt;/span&gt; &lt;span class="n"&gt;ipv6only&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;off&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+
+  &lt;span class="err"&gt;ssl_certificate&lt;/span&gt;     &lt;span class="err"&gt;/usr/local/var/lib/openvas/CA/servercert.pem&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+  &lt;span class="err"&gt;ssl_certificate_key&lt;/span&gt; &lt;span class="err"&gt;/usr/local/var/lib/openvas/private/CA/serverkey.pem&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+
+
+  &lt;span class="err"&gt;root&lt;/span&gt; &lt;span class="err"&gt;/usr/local/share/openvas/gsa/classic&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+
+  &lt;span class="err"&gt;location&lt;/span&gt; &lt;span class="err"&gt;~&lt;/span&gt; &lt;span class="err"&gt;^/(js/|css/|img/)&lt;/span&gt; &lt;span class="err"&gt;{&lt;/span&gt;
+    &lt;span class="err"&gt;root&lt;/span&gt; &lt;span class="err"&gt;/usr/local/share/openvas/gsa/classic&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+  &lt;span class="p"&gt;}&lt;/span&gt;
+
+  &lt;span class="nt"&gt;location&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="err"&gt;proxy_pass&lt;/span&gt; &lt;span class="n"&gt;http&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;//&lt;/span&gt;&lt;span class="n"&gt;gsa&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="err"&gt;proxy_set_header&lt;/span&gt; &lt;span class="err"&gt;Host&lt;/span&gt; &lt;span class="err"&gt;$http_host&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="err"&gt;proxy_set_header&lt;/span&gt; &lt;span class="err"&gt;X-Forwarded-For&lt;/span&gt; &lt;span class="err"&gt;$proxy_add_x_forwarded_for&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="err"&gt;proxy_set_header&lt;/span&gt; &lt;span class="err"&gt;X-Forwarded-Protocol&lt;/span&gt; &lt;span class="err"&gt;$scheme&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="err"&gt;proxy_set_header&lt;/span&gt; &lt;span class="err"&gt;X-Real-IP&lt;/span&gt; &lt;span class="err"&gt;$remote_addr&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+  &lt;span class="p"&gt;}&lt;/span&gt;
+
+&lt;span class="err"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;&lt;strong&gt;gsad.service&lt;/strong&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;[Unit]&lt;/span&gt;
+&lt;span class="na"&gt;Documentation&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;man:gsad(8) http://www.openvas.org/&lt;/span&gt;
+&lt;span class="na"&gt;Wants&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;openvas-manager.service&lt;/span&gt;
+
+&lt;span class="k"&gt;[Service]&lt;/span&gt;
+&lt;span class="na"&gt;Type&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;simple&lt;/span&gt;
+&lt;span class="na"&gt;ExecStart&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;/usr/local/sbin/gsad --foreground --http-only --unix-socket=/var/run/gsad.sock&lt;/span&gt;
+&lt;span class="na"&gt;Environment&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;LD_LIBRARY_PATH=/usr/local/lib&lt;/span&gt;
+&lt;span class="na"&gt;Restart&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;always&lt;/span&gt;
+
+&lt;span class="k"&gt;[Install]&lt;/span&gt;
+&lt;span class="na"&gt;WantedBy&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;multi-user.target&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;</content><category term="OpenVAS"></category><category term="NGINX"></category></entry></feed>

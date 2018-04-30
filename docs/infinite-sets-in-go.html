@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        <meta charset="utf-8" />
+    <title>blog.haardiek.org | Infinite Sets in Go</title>
+    <link rel="shortcut icon" type="image/png" href="./favicon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="./favicon.ico">
+    <link href="http://blog.haardiek.org/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="blog.haardiek.org Full Atom Feed" />
+    <link href="http://blog.haardiek.org/feeds/golang.atom.xml" type="application/atom+xml" rel="alternate" title="blog.haardiek.org Categories Atom Feed" />
+    <link rel="stylesheet" href="./theme/css/screen.css" type="text/css" />
+    <link rel="stylesheet" href="./theme/css/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="./theme/css/print.css" type="text/css" media="print" />
+    <meta name="generator" content="Pelican" />
+
+    <meta name="keywords" content="Golang" />
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href=".">Home</a></li>
+                <li><a href="./authors">Authors</a></li>
+            </ul>
+        </nav>
+        <div class="header_box">
+            <h1><a href=".">blog.haardiek.org</a></h1>
+        </div>
+    </header>
+    <div id="wrapper">
+        <div id="content">            <h4 class="date">Jan 07, 2017</h4>
+
+            <article class="post">
+                <h2 class="title">
+                    <a href="./infinite-sets-in-go.html" rel="bookmark" title="Permanent Link to &quot;Infinite Sets in Go&quot;">Infinite Sets in Go</a>
+                </h2>
+
+                <p>If you are too lazy to read, but interested in using finite and infinite sets
+in Go, just take a look at the <a href="https://godoc.org/github.com/shaardie/set">documentation</a> or directly at the
+<a href="https://github.com/shaardie/set">source</a> of the library which inspired this article.</p>
+<p>Some time ago I was working with Go and was missing the concept of set-like
+objects like I had in
+<a href="https://docs.python.org/3/tutorial/datastructures.html#sets">Python</a>. After
+some very very short investigation I found an article about <a href="https://blog.golang.org/go-maps-in-action">go maps in
+action</a> which was describing how to build such sets very simple
+by using maps.</p>
+<p>Inspired by that, I was thinking about the concept of sets in programming
+languages and realized that all the sets were defined explicitly by their
+elements. This is, in general, a good idea, since it makes such sets very fast
+and leads to a very easy structure definition.</p>
+<p>But I wanted to have an implementation of sets which was more like humans
+define sets, especially infinite sets. The goal was not to implement something
+that is fast, but easy to use them like real sets.</p>
+<p>This article is about the steps that followed.</p>
+<h2>Finite Sets</h2>
+<p>To begin with a set data structure, I was first implementing a struct <code>set</code>
+defined explicitly by its elements. I followed the <a href="https://blog.golang.org/go-maps-in-action">go maps in
+action</a> article I mentioned earlier.</p>
+<div class="highlight"><pre><span></span><span class="kd">type</span> <span class="nx">elementSet</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="nx">elements</span> <span class="kd">map</span><span class="p">[</span><span class="kd">interface</span><span class="p">{}]</span><span class="kt">bool</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>The most basic method defines which elements are contained in the set.</p>
+<div class="highlight"><pre><span></span><span class="kd">func</span> <span class="p">(</span><span class="nx">set</span> <span class="nx">elementSet</span><span class="p">)</span> <span class="nx">Contains</span><span class="p">(</span><span class="nx">x</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><span class="kt">bool</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nx">set</span><span class="p">.</span><span class="nx">elements</span><span class="p">[</span><span class="nx">x</span><span class="p">],</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>Why this function returns a tuple of boolean and error although this error is
+obviously never set, will be explained later.</p>
+<p>Also, I implemented the possibility to count the elements of a set and a helper
+function to create an explicit list of a function to make iteration a lot
+easier.</p>
+<div class="highlight"><pre><span></span><span class="kd">func</span> <span class="p">(</span><span class="nx">set</span> <span class="nx">elementSet</span><span class="p">)</span> <span class="nx">Cardinality</span><span class="p">()</span> <span class="p">(</span><span class="kt">uint64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+
+<span class="kd">var</span> <span class="nx">number</span> <span class="kt">uint64</span>
+<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">contained</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">set</span><span class="p">.</span><span class="nx">elements</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="nx">contained</span> <span class="p">{</span>
+        <span class="nx">number</span><span class="o">++</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+    <span class="k">return</span> <span class="nx">number</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">set</span> <span class="nx">elementSet</span><span class="p">)</span> <span class="nx">List</span><span class="p">()</span> <span class="p">([]</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="nx">number</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">set</span><span class="p">.</span><span class="nx">Cardinality</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="p">[]</span><span class="kd">interface</span><span class="p">{}{},</span> <span class="nx">err</span>
+    <span class="p">}</span>
+
+    <span class="kd">var</span> <span class="nx">list</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([]</span><span class="kd">interface</span><span class="p">{},</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">number</span><span class="p">)</span>
+    <span class="k">for</span> <span class="nx">element</span><span class="p">,</span> <span class="nx">contained</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">set</span><span class="p">.</span><span class="nx">elements</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="nx">contained</span> <span class="p">{</span>
+            <span class="nx">list</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">list</span><span class="p">,</span> <span class="nx">element</span><span class="p">)</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nx">list</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>Again here are some errors returned which are always <code>nil</code>. And again, this
+will be explained later.</p>
+<h2>Infinite Sets</h2>
+<p>After I had implemented the finite sets, I wanted to work with infinite
+sets, but defining infinite sets explicitly via the elements is obviously
+impossible. Mathematicians which are using pen and paper to define sets would,
+for example, define the set of all integers which are divisible by 10 like this</p>
+<div class="math">$$\{ n \in \Bbb{N} : n \mod 10 = 0 \}$$</div>
+<p>So my idea was to define the infinite sets in an equal way and define an
+infinite set via a function which describes which elements are contained. So I
+defined them as followed</p>
+<div class="highlight"><pre><span></span><span class="kd">type</span> <span class="nx">functionSet</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="nx">contains</span> <span class="kd">func</span><span class="p">(</span><span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><span class="kt">bool</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">set</span> <span class="nx">functionSet</span><span class="p">)</span> <span class="nx">Contains</span><span class="p">(</span><span class="nx">x</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><span class="kt">bool</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nx">set</span><span class="p">.</span><span class="nx">contains</span><span class="p">(</span><span class="nx">x</span><span class="p">)</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>I have to admit that this definition is not very practical and very generic,
+but this is also the case by the definition of sets in math. So it fits.</p>
+<p>Also, you can see that this struct can not only hold infinite sets but also
+finite sets as well. There are no real limits to the defining function at all.</p>
+<h2>The Interface</h2>
+<p>So now we have two different definitions of sets. To be able to use both of
+them the same way and be able for example to create a union from a finite set
+defined by <code>elementSet</code> and an infinite set defined by <code>functionSet</code>, I created
+an interface for these implementations. Also after defining an interface we can
+add other definitions of sets very easily as well. It's Go, right?</p>
+<div class="highlight"><pre><span></span><span class="kd">type</span> <span class="nx">Set</span> <span class="kd">interface</span> <span class="p">{</span>
+    <span class="nx">Contains</span><span class="p">(</span><span class="nx">x</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><span class="kt">bool</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span>
+    <span class="nx">Cardinality</span><span class="p">()</span> <span class="p">(</span><span class="kt">uint64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span>
+    <span class="nx">List</span><span class="p">()</span> <span class="p">([]</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">)</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>Now the problem is that we can not define <code>Cardinality()</code> and <code>List()</code> for
+<code>functionSet</code> that easy, since this information are very hard to extract from
+the defining function and for real infinite set it would be even impossible to
+define a list of elements explicitly. I solved this by implementing some dummy
+functions for these which only have <code>err != nil</code>.</p>
+<p>To make things easier I added a function to the interface to see if you are
+working with a set implementing <code>Cardinality()</code> and <code>List()</code> or not. So,
+therefore, the distinction is not any longer between infinite and finite sets,
+but countable and uncountable sets.</p>
+<div class="highlight"><pre><span></span><span class="kd">type</span> <span class="nx">Set</span> <span class="kd">interface</span> <span class="p">{</span>
+    <span class="nx">Contains</span><span class="p">(</span><span class="nx">x</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><span class="kt">bool</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span>
+    <span class="nx">Cardinality</span><span class="p">()</span> <span class="p">(</span><span class="kt">uint64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span>
+    <span class="nx">Countable</span><span class="p">()</span> <span class="kt">bool</span>
+    <span class="nx">List</span><span class="p">()</span> <span class="p">([]</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">)</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>Now it should be clear why there is returned some errors which are always <code>nil</code>
+in the previous sections. This is to fit the interface which is written much
+more generic than needed for the two existing implementations.</p>
+<h2>Adapt Structs to fit the Set Interface</h2>
+<p>To fulfill the interface <code>Set</code> I had to add some methods to the structs
+<code>elementSet</code> and <code>functionSet</code>.</p>
+<p>For <code>elementSet</code> I only needed to add the <code>Countable()</code> function which simply
+says <code>true</code>.</p>
+<div class="highlight"><pre><span></span><span class="kd">func</span> <span class="p">(</span><span class="nx">set</span> <span class="nx">elementSet</span><span class="p">)</span> <span class="nx">Countable</span><span class="p">()</span> <span class="kt">bool</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="kc">true</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>For <code>functionSet</code> I had to add the dummy function I talked about previously for
+<code>Cardinality()</code> and <code>List()</code> and add a <code>Countable()</code> function which simply says
+<code>false</code>.</p>
+<div class="highlight"><pre><span></span><span class="kd">func</span> <span class="p">(</span><span class="nx">set</span> <span class="nx">functionSet</span><span class="p">)</span> <span class="nx">Countable</span><span class="p">()</span> <span class="kt">bool</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="kc">false</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">set</span> <span class="nx">functionSet</span><span class="p">)</span> <span class="nx">Cardinality</span><span class="p">()</span> <span class="p">(</span><span class="kt">uint64</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">errors</span><span class="p">.</span><span class="nx">New</span><span class="p">(</span><span class="s">&quot;Not countable by design&quot;</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">set</span> <span class="nx">functionSet</span><span class="p">)</span> <span class="nx">List</span><span class="p">()</span> <span class="p">([]</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="p">[]</span><span class="kd">interface</span><span class="p">{}{},</span> <span class="nx">errors</span><span class="p">.</span><span class="nx">New</span><span class="p">(</span><span class="s">&quot;Not listable by design&quot;</span><span class="p">)</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>Now our structs should fit the interface <code>Set</code> and we can start defining
+functions on the sets.</p>
+<h2>Functions on Sets</h2>
+<p>You can define a lot of functions on the <code>Set</code> interface, but I will only
+describe a small amount of them. If you want to know more about those
+functions, look at the <a href="https://github.com/shaardie/set">source</a> or the <a href="https://godoc.org/github.com/shaardie/set">documentation</a> of the
+library.</p>
+<h3>Creating Sets</h3>
+<p>To be able to create sets I added two functions which simply takes either an
+explicit list or a function and create an <code>elementSet</code> or <code>functionSet</code> out of
+it.</p>
+<div class="highlight"><pre><span></span><span class="kd">func</span> <span class="nx">CreateFromArray</span><span class="p">(</span><span class="nx">list</span> <span class="p">[]</span><span class="kd">interface</span><span class="p">{})</span> <span class="nx">Set</span> <span class="p">{</span>
+    <span class="nx">set</span> <span class="o">:=</span> <span class="nx">elementSet</span><span class="p">{</span><span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kd">interface</span><span class="p">{}]</span><span class="kt">bool</span><span class="p">)}</span>
+    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">element</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">list</span> <span class="p">{</span>
+        <span class="nx">set</span><span class="p">.</span><span class="nx">elements</span><span class="p">[</span><span class="nx">element</span><span class="p">]</span> <span class="p">=</span> <span class="kc">true</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nx">set</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nx">CreateFromFunc</span><span class="p">(</span><span class="nx">f</span> <span class="kd">func</span><span class="p">(</span><span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><span class="kt">bool</span><span class="p">,</span> <span class="kt">error</span><span class="p">))</span> <span class="nx">Set</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nx">functionSet</span><span class="p">{</span><span class="nx">f</span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<h3>Intersecting Sets</h3>
+<p>One of the most basic operation on sets is to intersect them with each other.
+Due to the possibility to differ countable sets and not countable sets, we are
+able to distinct two different situations.</p>
+<h4>One countable Set</h4>
+<p>Obviously, if one of the sets to intersect is countable the intersection should
+also be countable as a subset of a countable set. The following function is to
+create such an intersection. Since intersections are commutative, let's assume
+that the set <code>a</code> is countable.</p>
+<div class="highlight"><pre><span></span><span class="kd">func</span> <span class="nx">countableIntersection</span><span class="p">(</span><span class="nx">a</span> <span class="nx">Set</span><span class="p">,</span> <span class="nx">b</span> <span class="nx">Set</span><span class="p">)</span> <span class="p">(</span><span class="nx">Set</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// Create new countable set</span>
+    <span class="nx">newSet</span> <span class="o">:=</span> <span class="nx">elementSet</span><span class="p">{</span><span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kd">interface</span><span class="p">{}]</span><span class="kt">bool</span><span class="p">)}</span>
+    <span class="c1">// Explicit list of the elements of a</span>
+    <span class="nx">elements</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nx">List</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nx">newSet</span><span class="p">,</span> <span class="nx">err</span>
+    <span class="p">}</span>
+    <span class="c1">// Check if the elements are also in b and therefor in the intersection</span>
+    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">element</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">elements</span> <span class="p">{</span>
+        <span class="nx">yes</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">element</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="nx">newSet</span><span class="p">,</span> <span class="nx">err</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="nx">yes</span> <span class="p">{</span>
+            <span class="nx">newSet</span><span class="p">.</span><span class="nx">elements</span><span class="p">[</span><span class="nx">element</span><span class="p">]</span> <span class="p">=</span> <span class="kc">true</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nx">newSet</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<h4>No countable Set</h4>
+<p>If both sets to intersect are not countable the intersection <em>could</em> be
+implemented as a countable set, but this is very hard to proof and therefore it
+is defined as the combination of the defining <code>Contains(x interface{})</code>
+functions.</p>
+<div class="highlight"><pre><span></span><span class="kd">func</span> <span class="nx">notCountableIntersection</span><span class="p">(</span><span class="nx">a</span> <span class="nx">Set</span><span class="p">,</span> <span class="nx">b</span> <span class="nx">Set</span><span class="p">)</span> <span class="p">(</span><span class="nx">Set</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// both not countable</span>
+    <span class="nx">newContains</span> <span class="o">:=</span> <span class="kd">func</span><span class="p">(</span><span class="nx">x</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><span class="kt">bool</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="nx">yes</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">x</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">err</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">!</span><span class="nx">yes</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="kc">nil</span>
+        <span class="p">}</span>
+        <span class="c1">// If here, x is in a</span>
+        <span class="k">if</span> <span class="nx">yes</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">x</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">err</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">!</span><span class="nx">yes</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="kc">nil</span>
+        <span class="p">}</span>
+        <span class="c1">// if here, x is in b</span>
+        <span class="k">return</span> <span class="kc">true</span><span class="p">,</span> <span class="kc">nil</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nx">functionSet</span><span class="p">{</span><span class="nx">newContains</span><span class="p">},</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>Now we only need some glue code to call one of these functions.</p>
+<div class="highlight"><pre><span></span><span class="kd">func</span> <span class="nx">Intersection</span><span class="p">(</span><span class="nx">a</span> <span class="nx">Set</span><span class="p">,</span> <span class="nx">b</span> <span class="nx">Set</span><span class="p">)</span> <span class="p">(</span><span class="nx">Set</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// a is countable</span>
+    <span class="k">if</span> <span class="nx">a</span><span class="p">.</span><span class="nx">Countable</span><span class="p">()</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nx">countableIntersection</span><span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="c1">// b is countable</span>
+    <span class="k">if</span> <span class="nx">b</span><span class="p">.</span><span class="nx">Countable</span><span class="p">()</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nx">countableIntersection</span><span class="p">(</span><span class="nx">b</span><span class="p">,</span> <span class="nx">a</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="c1">// Both not countable</span>
+    <span class="k">return</span> <span class="nx">notCountableIntersection</span><span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span><span class="p">)</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>Other functions are following the same chain of thoughts.</p>
+<h2>Examples</h2>
+<p>To show what you can do with this library here some examples.</p>
+<h3>Natural numbers</h3>
+<p>We can now, for example, define the set of natural numbers as a subset of all
+strings. It is a little bit like you see it as a human.</p>
+<div class="highlight"><pre><span></span><span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&quot;regexp&quot;</span>
+
+    <span class="s">&quot;github.com/shaardie/set&quot;</span>
+<span class="p">)</span>
+
+<span class="kd">var</span> <span class="nx">NatualNumbers</span> <span class="p">=</span> <span class="nx">set</span><span class="p">.</span><span class="nx">CreateFromFunc</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">x</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><span class="kt">bool</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="c1">// Is a string</span>
+    <span class="nx">str</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">x</span><span class="p">.(</span><span class="kt">string</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="kc">nil</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Match what you would &quot;see&quot; as a natural number</span>
+    <span class="k">return</span> <span class="nx">regexp</span><span class="p">.</span><span class="nx">MatchString</span><span class="p">(</span><span class="s">&quot;0|[1-9][0-9]*&quot;</span><span class="p">,</span> <span class="nx">str</span><span class="p">)</span>
+<span class="p">})</span>
+</pre></div>
+
+
+<p>Also, we define a set of very evil numbers.</p>
+<div class="highlight"><pre><span></span><span class="kd">var</span> <span class="nx">evilNumbers</span> <span class="p">=</span> <span class="nx">set</span><span class="p">.</span><span class="nx">CreateFromArray</span><span class="p">([]</span><span class="kd">interface</span><span class="p">{}{</span><span class="s">&quot;1&quot;</span><span class="p">,</span> <span class="s">&quot;3&quot;</span><span class="p">,</span> <span class="s">&quot;21&quot;</span><span class="p">,</span> <span class="s">&quot;999&quot;</span><span class="p">}</span>
+</pre></div>
+
+
+<p>Now we can create the subset of the natural numbers which are good by creating
+the difference.</p>
+<div class="highlight"><pre><span></span><span class="nx">goodNumbers</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">set</span><span class="p">.</span><span class="nx">Difference</span><span class="p">(</span><span class="nx">NatualNumbers</span><span class="p">,</span> <span class="nx">evilNumbers</span><span class="p">)</span>
+</pre></div>
+
+
+<p>Here the full example</p>
+<div class="highlight"><pre><span></span><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&quot;bufio&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+    <span class="s">&quot;regexp&quot;</span>
+
+    <span class="s">&quot;github.com/shaardie/set&quot;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span> <span class="nx">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">NatualNumbers</span> <span class="p">=</span> <span class="nx">set</span><span class="p">.</span><span class="nx">CreateFromFunc</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">x</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><span class="kt">bool</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+
+        <span class="c1">// Is a string</span>
+        <span class="nx">str</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">x</span><span class="p">.(</span><span class="kt">string</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="kc">nil</span>
+        <span class="p">}</span>
+
+        <span class="c1">// Match what you would &quot;see&quot; as a natural number</span>
+        <span class="k">return</span> <span class="nx">regexp</span><span class="p">.</span><span class="nx">MatchString</span><span class="p">(</span><span class="s">&quot;0|[1-9][0-9]*&quot;</span><span class="p">,</span> <span class="nx">str</span><span class="p">)</span>
+    <span class="p">})</span>
+
+    <span class="kd">var</span> <span class="nx">evilNumbers</span> <span class="p">=</span> <span class="nx">set</span><span class="p">.</span><span class="nx">CreateFromArray</span><span class="p">([]</span><span class="kd">interface</span><span class="p">{}{</span><span class="s">&quot;1&quot;</span><span class="p">,</span> <span class="s">&quot;3&quot;</span><span class="p">,</span> <span class="s">&quot;21&quot;</span><span class="p">,</span> <span class="s">&quot;999&quot;</span><span class="p">})</span>
+
+    <span class="nx">goodNumbers</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">set</span><span class="p">.</span><span class="nx">Difference</span><span class="p">(</span><span class="nx">NatualNumbers</span><span class="p">,</span> <span class="nx">evilNumbers</span><span class="p">)</span>
+
+    <span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">&quot;Please type a natural number&quot;</span><span class="p">)</span>
+    <span class="nx">b</span><span class="p">,</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">bufio</span><span class="p">.</span><span class="nx">NewReader</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stdin</span><span class="p">).</span><span class="nx">ReadLine</span><span class="p">()</span>
+    <span class="nx">number</span> <span class="o">:=</span> <span class="nb">string</span><span class="p">(</span><span class="nx">b</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nx">in</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">goodNumbers</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">number</span><span class="p">);</span> <span class="nx">in</span> <span class="p">{</span>
+        <span class="nx">fmt</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">&quot;%v is a good number\n&quot;</span><span class="p">,</span> <span class="nx">number</span><span class="p">)</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="nx">fmt</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">&quot;%v is an evil number\n&quot;</span><span class="p">,</span> <span class="nx">number</span><span class="p">)</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<h2>Conclusion</h2>
+<p>Creating finite and infinite sets in Go was canonical and due to the interface
+logic it is easy to expand this further with more complex solutions as well.</p>
+<p>Creating other math related packages, for example, a package of different
+number set is something I would definitely do. Also creating some kind of
+algebra on top of these sets is something very interesting.</p>
+<script type="text/javascript">if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width < 768) ? "left" : align;
+        indent = (screen.width < 768) ? "0em" : indent;
+        linebreak = (screen.width < 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+    mathjaxscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'AMS' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+</script>
+                <div class="clear"></div>
+
+                <div class="info">
+                    <a href="./author/sven-haardiek.html">Sven Haardiek</a>
+                    &nbsp;&middot;&nbsp;<a href="./category/golang.html" rel="tag">Golang</a>
+                    &nbsp;&middot;
+                    &nbsp;<a href="./tag/golang.html" class="tags">Golang</a>
+                </div>
+            </article>
+            <div class="clear"></div>
+            <footer>
+                <p>
+                <a href="https://github.com/jody-frankowski/blue-penguin">Blue Penguin</a> Theme
+                &middot;
+                Powered by <a href="http://getpelican.com">Pelican</a>
+                &middot;
+                <a href="./feeds/all.atom.xml" rel="alternate">Atom Feed</a>
+            </footer>
+        </div>
+        <div class="clear"></div>
+    </div>
+</body>
+</html>

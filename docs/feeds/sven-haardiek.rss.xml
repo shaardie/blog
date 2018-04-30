@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0"><channel><title>blog.haardiek.org - Sven Haardiek</title><link>http://blog.haardiek.org/</link><description></description><lastBuildDate>Sat, 17 Jun 2017 00:00:00 +0200</lastBuildDate><item><title>Setup OpenVAS as Master and Slave</title><link>http://blog.haardiek.org/setup-openvas-as-master-and-slave.html</link><description>&lt;p&gt;Did you ever want to connect your different &lt;a href="http://openvas.org/"&gt;OpenVAS&lt;/a&gt;
+installations and have all information about the vulnerabilities one one spot?
+Or do you have very strict network policies and want scan a separate
+sub-network, but do not want to browse your vulnerability in this sub-network?
+Well, this is possible by …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sven Haardiek</dc:creator><pubDate>Sat, 17 Jun 2017 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:blog.haardiek.org,2017-06-17:/setup-openvas-as-master-and-slave.html</guid><category>OpenVAS</category></item><item><title>Infinite Sets in Go</title><link>http://blog.haardiek.org/infinite-sets-in-go.html</link><description>&lt;p&gt;If you are too lazy to read, but interested in using finite and infinite sets
+in Go, just take a look at the &lt;a href="https://godoc.org/github.com/shaardie/set"&gt;documentation&lt;/a&gt; or directly at the
+&lt;a href="https://github.com/shaardie/set"&gt;source&lt;/a&gt; of the library which inspired this article.&lt;/p&gt;
+&lt;p&gt;Some time ago I was working with Go and was missing the concept of …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sven Haardiek</dc:creator><pubDate>Sat, 07 Jan 2017 00:00:00 +0100</pubDate><guid isPermaLink="false">tag:blog.haardiek.org,2017-01-07:/infinite-sets-in-go.html</guid><category>Golang</category></item><item><title>Using Ansible to set up a Debian Server</title><link>http://blog.haardiek.org/using-ansible-to-set-up-a-debian-server.html</link><description>&lt;p&gt;In my last blog entry &lt;a href="https://blog.haardiek.org/setup-a-debian-server.html"&gt;Setup a Debian
+Server&lt;/a&gt; I described a
+basic setup for a server running &lt;a href="https://www.debian.org"&gt;Debian Jessie&lt;/a&gt;. Now I
+want to talk about setting up the same server but using
+&lt;a href="https://www.ansible.com"&gt;Ansible&lt;/a&gt;. This is more or less an extension of the
+other blog entry, but could be used …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sven Haardiek</dc:creator><pubDate>Thu, 03 Mar 2016 15:00:00 +0000</pubDate><guid isPermaLink="false">tag:blog.haardiek.org,2016-03-03:/using-ansible-to-set-up-a-debian-server.html</guid><category>Debian</category><category>Server</category><category>Ansible</category></item><item><title>Setup a Debian Server</title><link>http://blog.haardiek.org/setup-a-debian-server.html</link><description>&lt;p&gt;Some time ago I decided to reinstall my root server from
+&lt;a href="https://www.netcup.de"&gt;Netcup&lt;/a&gt;. I chose &lt;a href="https://www.debian.org"&gt;Debian
+Jessie&lt;/a&gt; as the operating system, because i have the
+most experience with Debian.&lt;/p&gt;
+&lt;p&gt;In the following I will give a guide to my setup.&lt;/p&gt;
+&lt;h2&gt;Base Image&lt;/h2&gt;
+&lt;p&gt;It is possible to use the &lt;a href="https://www.vservercontrolpanel.de/Home"&gt;Netcup Server Control …&lt;/a&gt;&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sven Haardiek</dc:creator><pubDate>Wed, 20 Jan 2016 00:00:00 +0100</pubDate><guid isPermaLink="false">tag:blog.haardiek.org,2016-01-20:/setup-a-debian-server.html</guid><category>Debian</category><category>Server</category></item></channel></rss>

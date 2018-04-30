@@ -1,0 +1,1113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>blog.haardiek.org - Sven Haardiek</title><link href="http://blog.haardiek.org/" rel="alternate"></link><link href="http://blog.haardiek.org/feeds/sven-haardiek.atom.xml" rel="self"></link><id>http://blog.haardiek.org/</id><updated>2017-06-17T00:00:00+02:00</updated><entry><title>Setup OpenVAS as Master and Slave</title><link href="http://blog.haardiek.org/setup-openvas-as-master-and-slave.html" rel="alternate"></link><published>2017-06-17T00:00:00+02:00</published><updated>2017-06-17T00:00:00+02:00</updated><author><name>Sven Haardiek</name></author><id>tag:blog.haardiek.org,2017-06-17:/setup-openvas-as-master-and-slave.html</id><summary type="html">&lt;p&gt;Did you ever want to connect your different &lt;a href="http://openvas.org/"&gt;OpenVAS&lt;/a&gt;
+installations and have all information about the vulnerabilities one one spot?
+Or do you have very strict network policies and want scan a separate
+sub-network, but do not want to browse your vulnerability in this sub-network?
+Well, this is possible by …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Did you ever want to connect your different &lt;a href="http://openvas.org/"&gt;OpenVAS&lt;/a&gt;
+installations and have all information about the vulnerabilities one one spot?
+Or do you have very strict network policies and want scan a separate
+sub-network, but do not want to browse your vulnerability in this sub-network?
+Well, this is possible by using one OpenVAS installation as a &lt;strong&gt;Master&lt;/strong&gt; and
+the other ones as &lt;strong&gt;OMP Slaves&lt;/strong&gt;.&lt;/p&gt;
+&lt;h2&gt;Setup OpenVAS Installations&lt;/h2&gt;
+&lt;p&gt;Before diving into the master-slave configuration, here a brief description how
+I setup my OpenVAS installations.&lt;/p&gt;
+&lt;p&gt;Since OpenVAS is mostly developed on &lt;a href="https://www.debian.org/"&gt;Debian&lt;/a&gt;, I used
+Debian Jessie as OS for the OpenVAS installations.&lt;/p&gt;
+&lt;p&gt;I installed OpenVAS 9, which is the latest stable version of OpenVAS at the
+moment, but I do not install the Greenbone Security Assistant on the Slave.  I
+do not want to connect to the slave via the Web interface, so I do not need it.&lt;/p&gt;
+&lt;p&gt;After installation, I did the casual things you have to do with a new OpenVAS
+installation.  I set up the &lt;a href="https://redis.io/"&gt;Redis Server&lt;/a&gt; using the
+configuration from OpenVAS, generated certificates and private keys(
+Although I do not need the certificate and private key for Greenbone Security
+Assistant on the slave side, I was lazy and used &lt;code&gt;openvas-manage-certs -a&lt;/code&gt; as
+well on the master as on the slave) and downloaded the
+&lt;a href="https://scap.nist.gov/"&gt;SCAP&lt;/a&gt;,
+&lt;a href="https://en.wikipedia.org/wiki/Computer_emergency_response_team"&gt;CERT&lt;/a&gt; and
+&lt;a href="http://www.openvas.org/openvas-nvt-feed.html"&gt;NVT&lt;/a&gt; data on both Master and
+Slave.&lt;/p&gt;
+&lt;p&gt;Since I do not want to start the daemons on the master and sensors manually, I
+created some &lt;a href="https://www.freedesktop.org/wiki/Software/systemd/"&gt;Systemd&lt;/a&gt;
+service files. If you are interested, I stored them
+&lt;a href="https://gist.github.com/shaardie/19ed2fcc6187d3663014cdbcae579e02"&gt;here&lt;/a&gt;.
+You are free to use them.&lt;/p&gt;
+&lt;p&gt;That is my setup. So now let us talk about master-slave configuration.&lt;/p&gt;
+&lt;h2&gt;On the Slave Side&lt;/h2&gt;
+&lt;p&gt;As you probably already noticed, I used different Systemd service files for
+the OpenVAS Manager on the Master and on the Slave side. This is because I want
+to directly connect to OpenVAS Manager on the slave and therefore it has
+to listen globally. This can be achieved by starting the OpenVAS Manager with
+&lt;code&gt;listen=0.0.0.0&lt;/code&gt;. A &lt;code&gt;netstat&lt;/code&gt; call later we also know it listens on Port
+&lt;strong&gt;9390&lt;/strong&gt;.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;openvas-slave$ netstat -tulpen
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       User       Inode       PID/Program name
+...
+tcp        0      0 0.0.0.0:9390            0.0.0.0:*               LISTEN      0          11430       401/openvasmd
+...
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;The OpenVAS Manager authenticate itself using a certificate. To later be able
+to verify this communication we need to know this certificate. The certificate
+the OpenVAS Manager uses can be found under
+&lt;code&gt;${CMAKE_INSTALL_PREFIX}"/var/lib/openvas/CA/servercert.pem&lt;/code&gt;.
+So without changing the CMake variables it can be found under
+&lt;code&gt;/usr/local/var/lib/openvas/CA/servercert.pem&lt;/code&gt;. Save this file somewhere to
+be able to use it on the master side later.&lt;/p&gt;
+&lt;p&gt;We also need a OpenVAS Manager user to connect to. Therefore we simply create
+one&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;openvas-slave$ openvasmd --create-user slave
+User created with password &amp;#39;263383eb-3234-4114-b3bb-f6b78e95982d&amp;#39;.
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now we can move on to the master.&lt;/p&gt;
+&lt;h2&gt;On the Master Side&lt;/h2&gt;
+&lt;p&gt;Login to the Greenbone Security Assistant (If you do not have a user to connect
+to it, now is the time to create one) and go to &lt;em&gt;Configuration -&amp;gt; Scanners&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Scanners Configuration Location" src="http://blog.haardiek.org/images/openvas-master-sensor/config.png" title="Scanners Configuration location"&gt;&lt;/p&gt;
+&lt;p&gt;Create a new Scanner using the star symbol. Now you have to fill in the form.
+Here is how the filled in form looked in my installation.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="New Scanner" src="http://blog.haardiek.org/images/openvas-master-sensor/new_scanner.png" title="Create new 'OMP Slave' Scanner"&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Host&lt;/strong&gt;: Hostname or IP of your Slave&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Port&lt;/strong&gt;: &lt;code&gt;9390&lt;/code&gt;, as seen in the previous section&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Type&lt;/strong&gt;: &lt;code&gt;OMP Slave&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;CA Certificate&lt;/strong&gt;: The certificate you gathered from the slave&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;As &lt;strong&gt;Credentials&lt;/strong&gt; you have to use the user you created on the slave. You can
+simply use the star symbol again to create it on-the-fly.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Slave credentials" src="http://blog.haardiek.org/images/openvas-master-sensor/credentials.png" title="Create Slave Credentials"&gt;&lt;/p&gt;
+&lt;p&gt;After you have created your new Slave Scanner, you can use it to scans.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Slave Scan" src="http://blog.haardiek.org/images/openvas-master-sensor/slave_scan.png" title="Create Slave Scan"&gt;&lt;/p&gt;
+&lt;p&gt;Tada! A slave scan.&lt;/p&gt;</content><category term="OpenVAS"></category></entry><entry><title>Infinite Sets in Go</title><link href="http://blog.haardiek.org/infinite-sets-in-go.html" rel="alternate"></link><published>2017-01-07T00:00:00+01:00</published><updated>2017-01-07T00:00:00+01:00</updated><author><name>Sven Haardiek</name></author><id>tag:blog.haardiek.org,2017-01-07:/infinite-sets-in-go.html</id><summary type="html">&lt;p&gt;If you are too lazy to read, but interested in using finite and infinite sets
+in Go, just take a look at the &lt;a href="https://godoc.org/github.com/shaardie/set"&gt;documentation&lt;/a&gt; or directly at the
+&lt;a href="https://github.com/shaardie/set"&gt;source&lt;/a&gt; of the library which inspired this article.&lt;/p&gt;
+&lt;p&gt;Some time ago I was working with Go and was missing the concept of …&lt;/p&gt;</summary><content type="html">&lt;p&gt;If you are too lazy to read, but interested in using finite and infinite sets
+in Go, just take a look at the &lt;a href="https://godoc.org/github.com/shaardie/set"&gt;documentation&lt;/a&gt; or directly at the
+&lt;a href="https://github.com/shaardie/set"&gt;source&lt;/a&gt; of the library which inspired this article.&lt;/p&gt;
+&lt;p&gt;Some time ago I was working with Go and was missing the concept of set-like
+objects like I had in
+&lt;a href="https://docs.python.org/3/tutorial/datastructures.html#sets"&gt;Python&lt;/a&gt;. After
+some very very short investigation I found an article about &lt;a href="https://blog.golang.org/go-maps-in-action"&gt;go maps in
+action&lt;/a&gt; which was describing how to build such sets very simple
+by using maps.&lt;/p&gt;
+&lt;p&gt;Inspired by that, I was thinking about the concept of sets in programming
+languages and realized that all the sets were defined explicitly by their
+elements. This is, in general, a good idea, since it makes such sets very fast
+and leads to a very easy structure definition.&lt;/p&gt;
+&lt;p&gt;But I wanted to have an implementation of sets which was more like humans
+define sets, especially infinite sets. The goal was not to implement something
+that is fast, but easy to use them like real sets.&lt;/p&gt;
+&lt;p&gt;This article is about the steps that followed.&lt;/p&gt;
+&lt;h2&gt;Finite Sets&lt;/h2&gt;
+&lt;p&gt;To begin with a set data structure, I was first implementing a struct &lt;code&gt;set&lt;/code&gt;
+defined explicitly by its elements. I followed the &lt;a href="https://blog.golang.org/go-maps-in-action"&gt;go maps in
+action&lt;/a&gt; article I mentioned earlier.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;type&lt;/span&gt; &lt;span class="nx"&gt;elementSet&lt;/span&gt; &lt;span class="kd"&gt;struct&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="nx"&gt;elements&lt;/span&gt; &lt;span class="kd"&gt;map&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{}]&lt;/span&gt;&lt;span class="kt"&gt;bool&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;The most basic method defines which elements are contained in the set.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;set&lt;/span&gt; &lt;span class="nx"&gt;elementSet&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="nx"&gt;Contains&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;x&lt;/span&gt; &lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{})&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;bool&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;set&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;elements&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nx"&gt;x&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Why this function returns a tuple of boolean and error although this error is
+obviously never set, will be explained later.&lt;/p&gt;
+&lt;p&gt;Also, I implemented the possibility to count the elements of a set and a helper
+function to create an explicit list of a function to make iteration a lot
+easier.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;set&lt;/span&gt; &lt;span class="nx"&gt;elementSet&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="nx"&gt;Cardinality&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;uint64&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+
+&lt;span class="kd"&gt;var&lt;/span&gt; &lt;span class="nx"&gt;number&lt;/span&gt; &lt;span class="kt"&gt;uint64&lt;/span&gt;
+&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="nx"&gt;_&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;contained&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="k"&gt;range&lt;/span&gt; &lt;span class="nx"&gt;set&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;elements&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="nx"&gt;contained&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="nx"&gt;number&lt;/span&gt;&lt;span class="o"&gt;++&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;number&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+
+&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;set&lt;/span&gt; &lt;span class="nx"&gt;elementSet&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="nx"&gt;List&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="p"&gt;([]&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{},&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+
+    &lt;span class="nx"&gt;number&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;set&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Cardinality&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt; &lt;span class="o"&gt;!=&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="p"&gt;[]&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{}{},&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+
+    &lt;span class="kd"&gt;var&lt;/span&gt; &lt;span class="nx"&gt;list&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;make&lt;/span&gt;&lt;span class="p"&gt;([]&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{},&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;number&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="nx"&gt;element&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;contained&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="k"&gt;range&lt;/span&gt; &lt;span class="nx"&gt;set&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;elements&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="nx"&gt;contained&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="nx"&gt;list&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;append&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;list&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;element&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;list&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Again here are some errors returned which are always &lt;code&gt;nil&lt;/code&gt;. And again, this
+will be explained later.&lt;/p&gt;
+&lt;h2&gt;Infinite Sets&lt;/h2&gt;
+&lt;p&gt;After I had implemented the finite sets, I wanted to work with infinite
+sets, but defining infinite sets explicitly via the elements is obviously
+impossible. Mathematicians which are using pen and paper to define sets would,
+for example, define the set of all integers which are divisible by 10 like this&lt;/p&gt;
+&lt;div class="math"&gt;$$\{ n \in \Bbb{N} : n \mod 10 = 0 \}$$&lt;/div&gt;
+&lt;p&gt;So my idea was to define the infinite sets in an equal way and define an
+infinite set via a function which describes which elements are contained. So I
+defined them as followed&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;type&lt;/span&gt; &lt;span class="nx"&gt;functionSet&lt;/span&gt; &lt;span class="kd"&gt;struct&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="nx"&gt;contains&lt;/span&gt; &lt;span class="kd"&gt;func&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{})&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;bool&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+
+&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;set&lt;/span&gt; &lt;span class="nx"&gt;functionSet&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="nx"&gt;Contains&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;x&lt;/span&gt; &lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{})&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;bool&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;set&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;contains&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;x&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;I have to admit that this definition is not very practical and very generic,
+but this is also the case by the definition of sets in math. So it fits.&lt;/p&gt;
+&lt;p&gt;Also, you can see that this struct can not only hold infinite sets but also
+finite sets as well. There are no real limits to the defining function at all.&lt;/p&gt;
+&lt;h2&gt;The Interface&lt;/h2&gt;
+&lt;p&gt;So now we have two different definitions of sets. To be able to use both of
+them the same way and be able for example to create a union from a finite set
+defined by &lt;code&gt;elementSet&lt;/code&gt; and an infinite set defined by &lt;code&gt;functionSet&lt;/code&gt;, I created
+an interface for these implementations. Also after defining an interface we can
+add other definitions of sets very easily as well. It's Go, right?&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;type&lt;/span&gt; &lt;span class="nx"&gt;Set&lt;/span&gt; &lt;span class="kd"&gt;interface&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="nx"&gt;Contains&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;x&lt;/span&gt; &lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{})&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;bool&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="nx"&gt;Cardinality&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;uint64&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="nx"&gt;List&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="p"&gt;([]&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{},&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now the problem is that we can not define &lt;code&gt;Cardinality()&lt;/code&gt; and &lt;code&gt;List()&lt;/code&gt; for
+&lt;code&gt;functionSet&lt;/code&gt; that easy, since this information are very hard to extract from
+the defining function and for real infinite set it would be even impossible to
+define a list of elements explicitly. I solved this by implementing some dummy
+functions for these which only have &lt;code&gt;err != nil&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;To make things easier I added a function to the interface to see if you are
+working with a set implementing &lt;code&gt;Cardinality()&lt;/code&gt; and &lt;code&gt;List()&lt;/code&gt; or not. So,
+therefore, the distinction is not any longer between infinite and finite sets,
+but countable and uncountable sets.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;type&lt;/span&gt; &lt;span class="nx"&gt;Set&lt;/span&gt; &lt;span class="kd"&gt;interface&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="nx"&gt;Contains&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;x&lt;/span&gt; &lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{})&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;bool&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="nx"&gt;Cardinality&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;uint64&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="nx"&gt;Countable&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="kt"&gt;bool&lt;/span&gt;
+    &lt;span class="nx"&gt;List&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="p"&gt;([]&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{},&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now it should be clear why there is returned some errors which are always &lt;code&gt;nil&lt;/code&gt;
+in the previous sections. This is to fit the interface which is written much
+more generic than needed for the two existing implementations.&lt;/p&gt;
+&lt;h2&gt;Adapt Structs to fit the Set Interface&lt;/h2&gt;
+&lt;p&gt;To fulfill the interface &lt;code&gt;Set&lt;/code&gt; I had to add some methods to the structs
+&lt;code&gt;elementSet&lt;/code&gt; and &lt;code&gt;functionSet&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;For &lt;code&gt;elementSet&lt;/code&gt; I only needed to add the &lt;code&gt;Countable()&lt;/code&gt; function which simply
+says &lt;code&gt;true&lt;/code&gt;.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;set&lt;/span&gt; &lt;span class="nx"&gt;elementSet&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="nx"&gt;Countable&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="kt"&gt;bool&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="kc"&gt;true&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;For &lt;code&gt;functionSet&lt;/code&gt; I had to add the dummy function I talked about previously for
+&lt;code&gt;Cardinality()&lt;/code&gt; and &lt;code&gt;List()&lt;/code&gt; and add a &lt;code&gt;Countable()&lt;/code&gt; function which simply says
+&lt;code&gt;false&lt;/code&gt;.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;set&lt;/span&gt; &lt;span class="nx"&gt;functionSet&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="nx"&gt;Countable&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="kt"&gt;bool&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="kc"&gt;false&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+
+&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;set&lt;/span&gt; &lt;span class="nx"&gt;functionSet&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="nx"&gt;Cardinality&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;uint64&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;errors&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;New&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;Not countable by design&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+
+&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;set&lt;/span&gt; &lt;span class="nx"&gt;functionSet&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="nx"&gt;List&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="p"&gt;([]&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{},&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="p"&gt;[]&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{}{},&lt;/span&gt; &lt;span class="nx"&gt;errors&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;New&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;Not listable by design&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now our structs should fit the interface &lt;code&gt;Set&lt;/code&gt; and we can start defining
+functions on the sets.&lt;/p&gt;
+&lt;h2&gt;Functions on Sets&lt;/h2&gt;
+&lt;p&gt;You can define a lot of functions on the &lt;code&gt;Set&lt;/code&gt; interface, but I will only
+describe a small amount of them. If you want to know more about those
+functions, look at the &lt;a href="https://github.com/shaardie/set"&gt;source&lt;/a&gt; or the &lt;a href="https://godoc.org/github.com/shaardie/set"&gt;documentation&lt;/a&gt; of the
+library.&lt;/p&gt;
+&lt;h3&gt;Creating Sets&lt;/h3&gt;
+&lt;p&gt;To be able to create sets I added two functions which simply takes either an
+explicit list or a function and create an &lt;code&gt;elementSet&lt;/code&gt; or &lt;code&gt;functionSet&lt;/code&gt; out of
+it.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="nx"&gt;CreateFromArray&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;list&lt;/span&gt; &lt;span class="p"&gt;[]&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{})&lt;/span&gt; &lt;span class="nx"&gt;Set&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="nx"&gt;set&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;elementSet&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="nb"&gt;make&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kd"&gt;map&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{}]&lt;/span&gt;&lt;span class="kt"&gt;bool&lt;/span&gt;&lt;span class="p"&gt;)}&lt;/span&gt;
+    &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="nx"&gt;_&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;element&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="k"&gt;range&lt;/span&gt; &lt;span class="nx"&gt;list&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="nx"&gt;set&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;elements&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nx"&gt;element&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="kc"&gt;true&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;set&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+
+&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="nx"&gt;CreateFromFunc&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;f&lt;/span&gt; &lt;span class="kd"&gt;func&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{})&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;bool&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt; &lt;span class="nx"&gt;Set&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;functionSet&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="nx"&gt;f&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h3&gt;Intersecting Sets&lt;/h3&gt;
+&lt;p&gt;One of the most basic operation on sets is to intersect them with each other.
+Due to the possibility to differ countable sets and not countable sets, we are
+able to distinct two different situations.&lt;/p&gt;
+&lt;h4&gt;One countable Set&lt;/h4&gt;
+&lt;p&gt;Obviously, if one of the sets to intersect is countable the intersection should
+also be countable as a subset of a countable set. The following function is to
+create such an intersection. Since intersections are commutative, let's assume
+that the set &lt;code&gt;a&lt;/code&gt; is countable.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="nx"&gt;countableIntersection&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;a&lt;/span&gt; &lt;span class="nx"&gt;Set&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;b&lt;/span&gt; &lt;span class="nx"&gt;Set&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;Set&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="c1"&gt;// Create new countable set&lt;/span&gt;
+    &lt;span class="nx"&gt;newSet&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;elementSet&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="nb"&gt;make&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kd"&gt;map&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{}]&lt;/span&gt;&lt;span class="kt"&gt;bool&lt;/span&gt;&lt;span class="p"&gt;)}&lt;/span&gt;
+    &lt;span class="c1"&gt;// Explicit list of the elements of a&lt;/span&gt;
+    &lt;span class="nx"&gt;elements&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;a&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;List&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt; &lt;span class="o"&gt;!=&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;newSet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="c1"&gt;// Check if the elements are also in b and therefor in the intersection&lt;/span&gt;
+    &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="nx"&gt;_&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;element&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="k"&gt;range&lt;/span&gt; &lt;span class="nx"&gt;elements&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="nx"&gt;yes&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;b&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Contains&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;element&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt; &lt;span class="o"&gt;!=&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;newSet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="nx"&gt;yes&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="nx"&gt;newSet&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;elements&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nx"&gt;element&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="kc"&gt;true&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;newSet&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h4&gt;No countable Set&lt;/h4&gt;
+&lt;p&gt;If both sets to intersect are not countable the intersection &lt;em&gt;could&lt;/em&gt; be
+implemented as a countable set, but this is very hard to proof and therefore it
+is defined as the combination of the defining &lt;code&gt;Contains(x interface{})&lt;/code&gt;
+functions.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="nx"&gt;notCountableIntersection&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;a&lt;/span&gt; &lt;span class="nx"&gt;Set&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;b&lt;/span&gt; &lt;span class="nx"&gt;Set&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;Set&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="c1"&gt;// both not countable&lt;/span&gt;
+    &lt;span class="nx"&gt;newContains&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="kd"&gt;func&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;x&lt;/span&gt; &lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{})&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;bool&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="nx"&gt;yes&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;a&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Contains&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;x&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt; &lt;span class="o"&gt;!=&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="kc"&gt;false&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt; &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;!&lt;/span&gt;&lt;span class="nx"&gt;yes&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="kc"&gt;false&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="c1"&gt;// If here, x is in a&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="nx"&gt;yes&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;b&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Contains&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;x&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt; &lt;span class="o"&gt;!=&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="kc"&gt;false&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;err&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt; &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;!&lt;/span&gt;&lt;span class="nx"&gt;yes&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="kc"&gt;false&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="c1"&gt;// if here, x is in b&lt;/span&gt;
+        &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;functionSet&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="nx"&gt;newContains&lt;/span&gt;&lt;span class="p"&gt;},&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now we only need some glue code to call one of these functions.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="nx"&gt;Intersection&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;a&lt;/span&gt; &lt;span class="nx"&gt;Set&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;b&lt;/span&gt; &lt;span class="nx"&gt;Set&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;Set&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="c1"&gt;// a is countable&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="nx"&gt;a&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Countable&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;countableIntersection&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;a&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;b&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="c1"&gt;// b is countable&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="nx"&gt;b&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Countable&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;countableIntersection&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;b&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;a&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="c1"&gt;// Both not countable&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;notCountableIntersection&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;a&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;b&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Other functions are following the same chain of thoughts.&lt;/p&gt;
+&lt;h2&gt;Examples&lt;/h2&gt;
+&lt;p&gt;To show what you can do with this library here some examples.&lt;/p&gt;
+&lt;h3&gt;Natural numbers&lt;/h3&gt;
+&lt;p&gt;We can now, for example, define the set of natural numbers as a subset of all
+strings. It is a little bit like you see it as a human.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;
+    &lt;span class="s"&gt;&amp;quot;regexp&amp;quot;&lt;/span&gt;
+
+    &lt;span class="s"&gt;&amp;quot;github.com/shaardie/set&amp;quot;&lt;/span&gt;
+&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="kd"&gt;var&lt;/span&gt; &lt;span class="nx"&gt;NatualNumbers&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="nx"&gt;set&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;CreateFromFunc&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kd"&gt;func&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;x&lt;/span&gt; &lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{})&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;bool&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+
+    &lt;span class="c1"&gt;// Is a string&lt;/span&gt;
+    &lt;span class="nx"&gt;str&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;ok&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;x&lt;/span&gt;&lt;span class="p"&gt;.(&lt;/span&gt;&lt;span class="kt"&gt;string&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;!&lt;/span&gt;&lt;span class="nx"&gt;ok&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="kc"&gt;false&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+
+    &lt;span class="c1"&gt;// Match what you would &amp;quot;see&amp;quot; as a natural number&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;regexp&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;MatchString&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;0|[1-9][0-9]*&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;str&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;})&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Also, we define a set of very evil numbers.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kd"&gt;var&lt;/span&gt; &lt;span class="nx"&gt;evilNumbers&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="nx"&gt;set&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;CreateFromArray&lt;/span&gt;&lt;span class="p"&gt;([]&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{}{&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;1&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;3&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;21&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;999&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now we can create the subset of the natural numbers which are good by creating
+the difference.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="nx"&gt;goodNumbers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;_&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;set&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Difference&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;NatualNumbers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;evilNumbers&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Here the full example&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kn"&gt;package&lt;/span&gt; &lt;span class="nx"&gt;main&lt;/span&gt;
+
+&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;
+    &lt;span class="s"&gt;&amp;quot;bufio&amp;quot;&lt;/span&gt;
+    &lt;span class="s"&gt;&amp;quot;fmt&amp;quot;&lt;/span&gt;
+    &lt;span class="s"&gt;&amp;quot;os&amp;quot;&lt;/span&gt;
+    &lt;span class="s"&gt;&amp;quot;regexp&amp;quot;&lt;/span&gt;
+
+    &lt;span class="s"&gt;&amp;quot;github.com/shaardie/set&amp;quot;&lt;/span&gt;
+&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="kd"&gt;func&lt;/span&gt; &lt;span class="nx"&gt;main&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="kd"&gt;var&lt;/span&gt; &lt;span class="nx"&gt;NatualNumbers&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="nx"&gt;set&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;CreateFromFunc&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kd"&gt;func&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;x&lt;/span&gt; &lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{})&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;bool&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kt"&gt;error&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+
+        &lt;span class="c1"&gt;// Is a string&lt;/span&gt;
+        &lt;span class="nx"&gt;str&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;ok&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;x&lt;/span&gt;&lt;span class="p"&gt;.(&lt;/span&gt;&lt;span class="kt"&gt;string&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;!&lt;/span&gt;&lt;span class="nx"&gt;ok&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="kc"&gt;false&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="kc"&gt;nil&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+
+        &lt;span class="c1"&gt;// Match what you would &amp;quot;see&amp;quot; as a natural number&lt;/span&gt;
+        &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nx"&gt;regexp&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;MatchString&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;0|[1-9][0-9]*&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;str&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="p"&gt;})&lt;/span&gt;
+
+    &lt;span class="kd"&gt;var&lt;/span&gt; &lt;span class="nx"&gt;evilNumbers&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="nx"&gt;set&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;CreateFromArray&lt;/span&gt;&lt;span class="p"&gt;([]&lt;/span&gt;&lt;span class="kd"&gt;interface&lt;/span&gt;&lt;span class="p"&gt;{}{&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;1&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;3&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;21&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;999&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;})&lt;/span&gt;
+
+    &lt;span class="nx"&gt;goodNumbers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;_&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;set&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Difference&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;NatualNumbers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;evilNumbers&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+    &lt;span class="nx"&gt;fmt&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Println&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;Please type a natural number&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="nx"&gt;b&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;_&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;_&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;bufio&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;NewReader&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;os&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Stdin&lt;/span&gt;&lt;span class="p"&gt;).&lt;/span&gt;&lt;span class="nx"&gt;ReadLine&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+    &lt;span class="nx"&gt;number&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nb"&gt;string&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;b&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="nx"&gt;in&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;_&lt;/span&gt; &lt;span class="o"&gt;:=&lt;/span&gt; &lt;span class="nx"&gt;goodNumbers&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Contains&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;number&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt; &lt;span class="nx"&gt;in&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="nx"&gt;fmt&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Printf&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;%v is a good number\n&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;number&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt; &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="nx"&gt;fmt&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;Printf&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;%v is an evil number\n&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;number&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h2&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;Creating finite and infinite sets in Go was canonical and due to the interface
+logic it is easy to expand this further with more complex solutions as well.&lt;/p&gt;
+&lt;p&gt;Creating other math related packages, for example, a package of different
+number set is something I would definitely do. Also creating some kind of
+algebra on top of these sets is something very interesting.&lt;/p&gt;
+&lt;script type="text/javascript"&gt;if (!document.getElementById('mathjaxscript_pelican_#%@#$@#')) {
+    var align = "center",
+        indent = "0em",
+        linebreak = "false";
+
+    if (false) {
+        align = (screen.width &lt; 768) ? "left" : align;
+        indent = (screen.width &lt; 768) ? "0em" : indent;
+        linebreak = (screen.width &lt; 768) ? 'true' : linebreak;
+    }
+
+    var mathjaxscript = document.createElement('script');
+    mathjaxscript.id = 'mathjaxscript_pelican_#%@#$@#';
+    mathjaxscript.type = 'text/javascript';
+    mathjaxscript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=TeX-AMS-MML_HTMLorMML';
+    mathjaxscript[(window.opera ? "innerHTML" : "text")] =
+        "MathJax.Hub.Config({" +
+        "    config: ['MMLorHTML.js']," +
+        "    TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'AMS' } }," +
+        "    jax: ['input/TeX','input/MathML','output/HTML-CSS']," +
+        "    extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js']," +
+        "    displayAlign: '"+ align +"'," +
+        "    displayIndent: '"+ indent +"'," +
+        "    showMathMenu: true," +
+        "    messageStyle: 'normal'," +
+        "    tex2jax: { " +
+        "        inlineMath: [ ['\\\\(','\\\\)'] ], " +
+        "        displayMath: [ ['$$','$$'] ]," +
+        "        processEscapes: true," +
+        "        preview: 'TeX'," +
+        "    }, " +
+        "    'HTML-CSS': { " +
+        "        styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: 'inherit ! important'} }," +
+        "        linebreaks: { automatic: "+ linebreak +", width: '90% container' }," +
+        "    }, " +
+        "}); " +
+        "if ('default' !== 'default') {" +
+            "MathJax.Hub.Register.StartupHook('HTML-CSS Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax['HTML-CSS'].FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+            "MathJax.Hub.Register.StartupHook('SVG Jax Ready',function () {" +
+                "var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;" +
+                "VARIANT['normal'].fonts.unshift('MathJax_default');" +
+                "VARIANT['bold'].fonts.unshift('MathJax_default-bold');" +
+                "VARIANT['italic'].fonts.unshift('MathJax_default-italic');" +
+                "VARIANT['-tex-mathit'].fonts.unshift('MathJax_default-italic');" +
+            "});" +
+        "}";
+    (document.body || document.getElementsByTagName('head')[0]).appendChild(mathjaxscript);
+}
+&lt;/script&gt;</content><category term="Golang"></category></entry><entry><title>Using Ansible to set up a Debian Server</title><link href="http://blog.haardiek.org/using-ansible-to-set-up-a-debian-server.html" rel="alternate"></link><published>2016-03-03T15:00:00+00:00</published><updated>2016-03-03T15:00:00+00:00</updated><author><name>Sven Haardiek</name></author><id>tag:blog.haardiek.org,2016-03-03:/using-ansible-to-set-up-a-debian-server.html</id><summary type="html">&lt;p&gt;In my last blog entry &lt;a href="https://blog.haardiek.org/setup-a-debian-server.html"&gt;Setup a Debian
+Server&lt;/a&gt; I described a
+basic setup for a server running &lt;a href="https://www.debian.org"&gt;Debian Jessie&lt;/a&gt;. Now I
+want to talk about setting up the same server but using
+&lt;a href="https://www.ansible.com"&gt;Ansible&lt;/a&gt;. This is more or less an extension of the
+other blog entry, but could be used …&lt;/p&gt;</summary><content type="html">&lt;p&gt;In my last blog entry &lt;a href="https://blog.haardiek.org/setup-a-debian-server.html"&gt;Setup a Debian
+Server&lt;/a&gt; I described a
+basic setup for a server running &lt;a href="https://www.debian.org"&gt;Debian Jessie&lt;/a&gt;. Now I
+want to talk about setting up the same server but using
+&lt;a href="https://www.ansible.com"&gt;Ansible&lt;/a&gt;. This is more or less an extension of the
+other blog entry, but could be used by any Debian installation with ssh access
+enabled for root using a password.&lt;/p&gt;
+&lt;h2&gt;Ansible&lt;/h2&gt;
+&lt;p&gt;Ansible has multiple use cases and one of them is as a &lt;a href="https://www.ansible.com/configuration-management"&gt;configuration
+management tool&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Instead of installing some kind of client on the target system the
+configuration is done via ssh connections which is a great advantage because
+you will leave a much smaller footprint on the target system.&lt;/p&gt;
+&lt;p&gt;We use &lt;a href="https://docs.ansible.com/ansible/playbooks.html"&gt;Playbooks&lt;/a&gt; to define
+the configuration state of the target system. The &lt;a href="https://docs.ansible.com/ansible/playbooks.html"&gt;Ansible
+documentation&lt;/a&gt; describes
+Playbooks as following:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;Playbooks are Ansible’s configuration, deployment, and orchestration
+language. They can describe a policy you want your remote systems to enforce,
+or a set of steps in a general IT process.
+
+[...]
+
+At a basic level, playbooks can be used to manage configurations of and
+deployments to remote machines. At a more advanced level, they can sequence
+multi-tier rollouts involving rolling updates, and can delegate actions to
+other hosts, interacting with monitoring servers and load balancers along
+the way.
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Is is also important to understand that we do not define which commands should
+run on the target system to get the state we want to have but that we define
+the state of the target system with those Playbooks. Ansible does the remaining
+work and run the commands to configure the system but only if it is necessary.
+Otherwise nothing is done. So we can execute those Playbooks
+multiple times and nothing change.&lt;/p&gt;
+&lt;p&gt;These Playbooks are written in &lt;a href="http://yaml.org"&gt;Yaml&lt;/a&gt; and are therefor really
+easy to read. So you can use them even as documentation.&lt;/p&gt;
+&lt;p&gt;Ansible is able to run &lt;a href="https://docs.ansible.com/ansible/intro_adhoc.html"&gt;ad-hoc
+commands&lt;/a&gt; on multiple target
+system at once (This could be used for updates for example) or outsource
+definitions in so called
+&lt;a href="https://docs.ansible.com/ansible/playbooks_roles.html"&gt;roles&lt;/a&gt;, so that they
+can be used in multiple Playbooks. There are a lot of other things Ansible is
+able to to and you can set up complex configuration definition. If you want to
+do that, look at &lt;a href="https://docs.ansible.com/"&gt;documentation&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;So lets talk about the different files we have to define the state of the
+Debian Server we want to set up.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;$ ls
+debianserver.yml  hosts  prebook.yml
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;First we want to have a look at the &lt;code&gt;hosts&lt;/code&gt; file.&lt;/p&gt;
+&lt;h2&gt;Inventory file &lt;code&gt;hosts&lt;/code&gt;&lt;/h2&gt;
+&lt;p&gt;It is possible to configure multiple system with Ansible. To coordinate the
+different systems and groups of multiple systems you want to administrate with
+Ansible there exists a Inventory file. The most common Ansible installation
+ship a global Inventory file under &lt;code&gt;/etc/ansible/hosts&lt;/code&gt;, but since this file is
+only editable with higher privileges, I prefer using a local Inventory file
+&lt;code&gt;hosts&lt;/code&gt;. Lets say we want to configure &lt;code&gt;server.com&lt;/code&gt;. So &lt;code&gt;hosts&lt;/code&gt; looks as
+following&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;[server]&lt;/span&gt;
+&lt;span class="na"&gt;server.com&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;In our Playbooks we use the group name &lt;code&gt;server&lt;/code&gt;. Therefor it would be very easy
+to add multiple systems and run the Playbook against them. For example if we
+want to configure &lt;code&gt;server.com&lt;/code&gt; and let us say &lt;code&gt;192.133.46.13&lt;/code&gt;, we simply add
+the IP to &lt;code&gt;hosts&lt;/code&gt;&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;[server]&lt;/span&gt;
+&lt;span class="na"&gt;server.com&lt;/span&gt;
+&lt;span class="na"&gt;192.133.46.13&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;It is also possible to add explicit ports, a range of IPs, and a lot of other
+stuff. Simply look at &lt;a href="https://docs.ansible.com/ansible/intro_inventory.html"&gt;Inventory file
+documentation&lt;/a&gt;.&lt;/p&gt;
+&lt;h2&gt;Playbooks&lt;/h2&gt;
+&lt;p&gt;Since we want to configure the OpenSSH Server via a ssh connection, we have a
+special use case here for Ansible. Because of that I decided to split the
+configuration into two Playbooks. The first one &lt;code&gt;prebook.yml&lt;/code&gt; changes the root
+password and add a configuration user. The second one &lt;code&gt;debianserver.yml&lt;/code&gt; uses
+the configuration user and configures the remaining stuff like the OpenSSH
+server and the firewall. Without separation we could not run the Playbook
+multiple times because we would disable root access via ssh and therefor could
+not use the connection the next time. With a separation we can run
+&lt;code&gt;prebook.yml&lt;/code&gt; as often as we want to and if we are happy, we could run
+&lt;code&gt;debianserver.yml&lt;/code&gt;. Also we can later change or add stuff to &lt;code&gt;debianserver.yml&lt;/code&gt;
+and run it again.&lt;/p&gt;
+&lt;p&gt;Now I describe the two Playbooks. Some shortsome short explanations are added
+but if you want to understand it exactly look at the documentation of Ansible.&lt;/p&gt;
+&lt;h3&gt;Playbook &lt;code&gt;prebook.yml&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;The next file we want to look at is &lt;code&gt;prebook.yml&lt;/code&gt;. This is our first Playbook.&lt;/p&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt; 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="nn"&gt;---&lt;/span&gt;
+
+&lt;span class="c1"&gt;# Prerequisite:&lt;/span&gt;
+&lt;span class="c1"&gt;#   ssh access with root and password&lt;/span&gt;
+&lt;span class="c1"&gt;#   ssh authentication key on local machine&lt;/span&gt;
+
+&lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;hosts&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;server&lt;/span&gt;
+
+
+  &lt;span class="l l-Scalar l-Scalar-Plain"&gt;vars_prompt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+
+    &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;root_password&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;prompt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;Enter new root password&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;private&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;encrypt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sha512_crypt&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;confirm&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;salt_size&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;7&lt;/span&gt;
+
+    &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user_password&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;prompt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;Enter new user password&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;private&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;encrypt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sha512_crypt&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;confirm&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;salt_size&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;7&lt;/span&gt;
+
+    &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;ssh_key&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;prompt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;Enter filename of public ssh key&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;default&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;~/.ssh/id_rsa.pub&amp;quot;&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;private&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;no&lt;/span&gt;
+
+
+  &lt;span class="l l-Scalar l-Scalar-Plain"&gt;remote_user&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;root&lt;/span&gt;
+
+
+  &lt;span class="l l-Scalar l-Scalar-Plain"&gt;tasks&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;apply root password&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;root&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;password&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;{{&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;root_password&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;}}&amp;quot;&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;ensure sudo is installed&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;apt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sudo&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;ensure user is present&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;append&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;groups&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sudo&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;password&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;{{&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;user_password&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;}}&amp;quot;&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;ensure user is accessable with ssh key&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;authorized_key&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;key&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;{{&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;lookup(&amp;#39;file&amp;#39;,&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;ssh_key)&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;}}&amp;quot;&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;p&gt;Here is a short explanation of the different parts:&lt;/p&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;hosts&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;server&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;p&gt;defines the remote machines this Playbook is used for.&lt;/p&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt; 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;  &lt;span class="l l-Scalar l-Scalar-Plain"&gt;vars_prompt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+
+    &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;root_password&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;prompt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;Enter new root password&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;private&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;encrypt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sha512_crypt&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;confirm&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;salt_size&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;7&lt;/span&gt;
+
+    &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user_password&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;prompt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;Enter new user password&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;private&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;encrypt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sha512_crypt&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;confirm&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;salt_size&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;7&lt;/span&gt;
+
+    &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;ssh_key&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;prompt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;Enter filename of public ssh key&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;default&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;~/.ssh/id_rsa.pub&amp;quot;&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;private&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;no&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;p&gt;is used to prompt some options to the user who runs the Playbook. The user can
+set the new password for root and for the user used later for configuration.
+Only a hashed value of the password is stored and not the password itself.
+Furthermore he can set the path to the public ssh key used for later
+identification.  See
+&lt;a href="https://docs.ansible.com/ansible/playbooks_prompts.html"&gt;Prompts&lt;/a&gt; for more
+informations.&lt;/p&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;  &lt;span class="l l-Scalar l-Scalar-Plain"&gt;remote_user&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;root&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;p&gt;defines the user used on the target system. For this user the ssh connection is
+set and also under this user the commands run on the target system.&lt;/p&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt; 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;  &lt;span class="l l-Scalar l-Scalar-Plain"&gt;tasks&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;apply root password&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;root&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;password&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;{{&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;root_password&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;}}&amp;quot;&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;ensure sudo is installed&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;apt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sudo&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;ensure user is present&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;append&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;groups&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sudo&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;password&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;{{&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;user_password&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;}}&amp;quot;&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;ensure user is accessable with ssh key&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;authorized_key&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;key&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;{{&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;lookup(&amp;#39;file&amp;#39;,&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;ssh_key)&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;}}&amp;quot;&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;p&gt;This part defines the tasks running on the target system. The different tasks
+are modules defined in Ansible itself, see
+&lt;a href="https://docs.ansible.com/ansible/modules.html"&gt;Modules&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;For example the module
+&lt;a href="https://docs.ansible.com/ansible/user_module.html"&gt;user&lt;/a&gt; is able to manage
+user accounts. You only define the state you want to have on the target system.
+Here you want to have a user called &lt;em&gt;user&lt;/em&gt; present. This user should also be in
+the group &lt;em&gt;sudo&lt;/em&gt; and have set the password from the previous prompt. After
+running the Playbook this is the state you have. Independent from what was
+before. This is the great advantage about configuration management tools.&lt;/p&gt;
+&lt;p&gt;To look up a module used here, see the &lt;a href="https://docs.ansible.com/ansible/modules_by_category.html"&gt;Module
+Index&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Simply run the following command to apply the Playbook.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;ansible-playbook --inventory hosts prebook.yml --ask-pass
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;&lt;code&gt;--ask-pass&lt;/code&gt; tells Ansible to try connecting with ssh using a password and not
+a ssh key. As I said you can run this Playbook multiple times.&lt;/p&gt;
+&lt;h3&gt;Playbook &lt;code&gt;debianserver.yml&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;Now lets have a look at the remaining Playbook.&lt;/p&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt; 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="nn"&gt;---&lt;/span&gt;
+
+&lt;span class="c1"&gt;# Prerequisits: SSH access for user with password&lt;/span&gt;
+
+&lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;hosts&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;server&lt;/span&gt;
+
+
+  &lt;span class="l l-Scalar l-Scalar-Plain"&gt;remote_user&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;user&lt;/span&gt;
+
+
+  &lt;span class="l l-Scalar l-Scalar-Plain"&gt;tasks&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;Do not allow root access via ssh&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sudo&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;lineinfile&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;line&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;PermitRootLogin no&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;dest&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;/etc/ssh/sshd_config&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;regexp&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;^PermitRootLogin&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;notify&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;restart ssh&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;Do not allow ssh access via password&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sudo&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;lineinfile&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;line&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;PasswordAuthentication no&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;dest&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;/etc/ssh/sshd_config&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;regexp&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;^PasswordAuthentication&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;notify&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;restart ssh&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;Delete ssh host keys&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sudo&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;shell&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="s"&gt;&amp;quot;rm&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;/etc/ssh/ssh_host_*&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;&amp;amp;&amp;amp;&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;dpkg-reconfigure&lt;/span&gt;&lt;span class="nv"&gt; &lt;/span&gt;&lt;span class="s"&gt;openssh-server&amp;quot;&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;notify&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;restart ssh&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;when&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;renew_ssh is defined and renew_ssh == &amp;quot;yes&amp;quot;&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;Make sure uft is installed&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sudo&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;apt&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;ufw&lt;/span&gt;
+
+  &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;Configure firewall&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sudo&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;ufw&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;policy&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;deny&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;rule&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;allow&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;OpenSSH&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;state&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;enabled&lt;/span&gt;
+
+
+  &lt;span class="l l-Scalar l-Scalar-Plain"&gt;handlers&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+    &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;restart ssh&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sudo&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;service&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+        &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;ssh&lt;/span&gt;
+        &lt;span class="l l-Scalar l-Scalar-Plain"&gt;state&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;restarted&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;p&gt;Again here some short explanations. Things from &lt;code&gt;prebook.yml&lt;/code&gt; are not repeated.&lt;/p&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sudo&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;p&gt;Tasks and Handler run as another user (here as superuser).&lt;/p&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;notify&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;restart ssh&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;p&gt;If the Tasks really changes something the Handler with the name &lt;code&gt;restart ssh&lt;/code&gt;
+runs at the end of the Playbook. This is most commonly used the restart or
+reload services, but it is not limited to that.&lt;/p&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;    &lt;span class="l l-Scalar l-Scalar-Plain"&gt;when&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;renew_ssh is defined and renew_ssh == &amp;quot;yes&amp;quot;&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;p&gt;This Tasks is skipped if the statement is &lt;code&gt;False&lt;/code&gt;.&lt;/p&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1
+2
+3
+4
+5
+6&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;  &lt;span class="l l-Scalar l-Scalar-Plain"&gt;handlers&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+    &lt;span class="p p-Indicator"&gt;-&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;restart ssh&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;sudo&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;yes&lt;/span&gt;
+      &lt;span class="l l-Scalar l-Scalar-Plain"&gt;service&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt;
+        &lt;span class="l l-Scalar l-Scalar-Plain"&gt;name&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;ssh&lt;/span&gt;
+        &lt;span class="l l-Scalar l-Scalar-Plain"&gt;state&lt;/span&gt;&lt;span class="p p-Indicator"&gt;:&lt;/span&gt; &lt;span class="l l-Scalar l-Scalar-Plain"&gt;restarted&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;p&gt;In the Handlers section the different Handlers are defined.&lt;/p&gt;
+&lt;p&gt;As you maybe saw in the Playbook above the variable &lt;code&gt;renew_ssh&lt;/code&gt; is used but
+never defined. In Ansible you can define extra variables over the command line.
+So if you do not set &lt;code&gt;renew_ssh&lt;/code&gt; the replacement of the ssh keys is skipped.
+This is reasonable since you do not want to change the ssh host keys every
+time. So if you execute the Playbook with the following command&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;ansible-playbook --inventory hosts debianserver.yml --ask-sudo-pass
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;the ssh host keys are not replaced. But if you use&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;ansible-playbook -i hosts --ask-sudo-pass --extra-vars=&amp;quot;renew_ssh=yes&amp;quot; debianserver.yml
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;you will get new ssh host keys.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;--ask-sudo-pass&lt;/code&gt; prompt for the password of the user used for configuration.&lt;/p&gt;
+&lt;h2&gt;Final Words&lt;/h2&gt;
+&lt;p&gt;After running both Playbooks against your server you should have the same state
+than the one described in &lt;a href="https://blog.haardiek.org/setup-a-debian-server.html"&gt;Setup a Debian
+Server&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Notice! You never manually logged in your system. So you leave it in a very
+clean state. Every change is documented in the Playbooks.&lt;/p&gt;
+&lt;p&gt;You can also try new changes on a test server and later apply it to your
+production server. But by using Ansible and automate the process it is much
+harder to make errors during the transfer.&lt;/p&gt;
+&lt;p&gt;Also if you server dies for some reason for example because the hardware
+breaks. You can set up a new one with the exact same state. And that very
+quick. Of course you data will be lost!&lt;/p&gt;
+&lt;p&gt;In conclusion I would like to encourage you look deeper into Ansible. I hope I
+was able to show you some advantages against the manual setup of machines.&lt;/p&gt;</content><category term="Debian"></category><category term="Server"></category><category term="Ansible"></category></entry><entry><title>Setup a Debian Server</title><link href="http://blog.haardiek.org/setup-a-debian-server.html" rel="alternate"></link><published>2016-01-20T00:00:00+01:00</published><updated>2016-01-20T00:00:00+01:00</updated><author><name>Sven Haardiek</name></author><id>tag:blog.haardiek.org,2016-01-20:/setup-a-debian-server.html</id><summary type="html">&lt;p&gt;Some time ago I decided to reinstall my root server from
+&lt;a href="https://www.netcup.de"&gt;Netcup&lt;/a&gt;. I chose &lt;a href="https://www.debian.org"&gt;Debian
+Jessie&lt;/a&gt; as the operating system, because i have the
+most experience with Debian.&lt;/p&gt;
+&lt;p&gt;In the following I will give a guide to my setup.&lt;/p&gt;
+&lt;h2&gt;Base Image&lt;/h2&gt;
+&lt;p&gt;It is possible to use the &lt;a href="https://www.vservercontrolpanel.de/Home"&gt;Netcup Server Control …&lt;/a&gt;&lt;/p&gt;</summary><content type="html">&lt;p&gt;Some time ago I decided to reinstall my root server from
+&lt;a href="https://www.netcup.de"&gt;Netcup&lt;/a&gt;. I chose &lt;a href="https://www.debian.org"&gt;Debian
+Jessie&lt;/a&gt; as the operating system, because i have the
+most experience with Debian.&lt;/p&gt;
+&lt;p&gt;In the following I will give a guide to my setup.&lt;/p&gt;
+&lt;h2&gt;Base Image&lt;/h2&gt;
+&lt;p&gt;It is possible to use the &lt;a href="https://www.vservercontrolpanel.de/Home"&gt;Netcup Server Control
+Panel&lt;/a&gt; to install the base system on
+your server. There you can easily click through the different options. Of
+course you have to use the minimal Debian Jessie installation.  After that you
+can choose between different predefined partitions. If you have no special
+wishes, choose one great partition. So you can use the whole space without
+having to partition something manually. At least use the mail notification. So
+after your server is installed you got a mail with the long randomly set root
+password.&lt;/p&gt;
+&lt;p&gt;You can log in with this password using the command&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;ssh root@&amp;lt;hostname&amp;gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;on your preferred terminal emulator and take a first look at your fresh
+installed operating system.&lt;/p&gt;
+&lt;p&gt;As a first step you should change the root password by using the&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;passwd
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;command.&lt;/p&gt;
+&lt;h2&gt;User&lt;/h2&gt;
+&lt;p&gt;In my opinion it is not a good idea to use the &lt;em&gt;root&lt;/em&gt; user to configure a
+server. So you should create a new user &lt;em&gt;username&lt;/em&gt; with&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;adduser &amp;lt;username&amp;gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;You can use this user to configure also services and other stuff so you should
+add this user to the group sudo. The minimal image of netcup do not have sudo
+installed, so you have to install it manually&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;apt-get install sudo
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;and then add &lt;em&gt;username&lt;/em&gt; to the group sudo&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;adduser &amp;lt;username&amp;gt; sudo
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now you can log out your server by using&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;exit
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;or using &lt;code&gt;Ctrl-D&lt;/code&gt; and log in again with your user&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;ssh &amp;lt;username&amp;gt;@hostname
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;A password enabled log in is a security issue, so you should configure the SSH
+server to disable it as described next.&lt;/p&gt;
+&lt;h2&gt;SSH Configuration&lt;/h2&gt;
+&lt;p&gt;So now we want to configure SSH. First we create a SSH key on the computer we
+want to connect to the server.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;ssh-keygen -t rsa -b 4096
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now copy the output of&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;cat ~/.ssh/id_rsa.pub
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;to the file &lt;code&gt;/home/&amp;lt;username&amp;gt;/.ssh/authorized_keys&lt;/code&gt;. If the directory
+&lt;code&gt;/home/&amp;lt;username&amp;gt;/.ssh&lt;/code&gt; does not exists, you can create it by executing&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;mkdir /home/&amp;lt;username&amp;gt;/.ssh
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now you can check, if you can log in the server without using a password
+(except the password you set for the ssh key).&lt;/p&gt;
+&lt;p&gt;Since the ssh keys are generated during the installation done by netcup, you should renew them with&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;sudo rm /etc/ssh/ssh_host_*
+sudo dpkg-reconfigure openssh-server
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Edit &lt;code&gt;/etc/ssh/sshd_config&lt;/code&gt; with your favorite editor (vim, nano, ...) and set &lt;code&gt;PermitRootLogin&lt;/code&gt; and PasswordAuthentication &lt;code&gt;no&lt;/code&gt;. To enable these changes restart SSH by&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;systemctl restart ssh
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h2&gt;Firewall&lt;/h2&gt;
+&lt;p&gt;And last you should install a firewall. For simple configuration I would choose
+&lt;a href="https://launchpad.net/ufw"&gt;ufw&lt;/a&gt;, because it is very easy to configure. So to install ufw use&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;sudo apt-get install ufw
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Now you should configure the firewall. As a simple setup i would recommend a firewall configuration that denies per default all communication, enable the logging and of course enable communication via ssh. This configuration is achieved by the following commands&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;sudo ufw default deny
+sudo ufw logging on
+sudo ufw allow ssh/tcp
+sudo ufw enable
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h2&gt;Final Words&lt;/h2&gt;
+&lt;p&gt;Now you should have a basic installation of a debian server to have fun with.
+So long...&lt;/p&gt;</content><category term="Debian"></category><category term="Server"></category></entry></feed>

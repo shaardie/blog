@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        <meta charset="utf-8" />
+    <title>blog.haardiek.org | Deploy gsad behind an an nginx proxy</title>
+    <link rel="shortcut icon" type="image/png" href="./favicon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="./favicon.ico">
+    <link href="http://blog.haardiek.org/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="blog.haardiek.org Full Atom Feed" />
+    <link href="http://blog.haardiek.org/feeds/openvas.atom.xml" type="application/atom+xml" rel="alternate" title="blog.haardiek.org Categories Atom Feed" />
+    <link rel="stylesheet" href="./theme/css/screen.css" type="text/css" />
+    <link rel="stylesheet" href="./theme/css/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="./theme/css/print.css" type="text/css" media="print" />
+    <meta name="generator" content="Pelican" />
+
+    <meta name="keywords" content="OpenVAS,NGINX" />
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href=".">Home</a></li>
+                <li><a href="./authors">Authors</a></li>
+            </ul>
+        </nav>
+        <div class="header_box">
+            <h1><a href=".">blog.haardiek.org</a></h1>
+        </div>
+    </header>
+    <div id="wrapper">
+        <div id="content">            <h4 class="date">Apr 30, 2016</h4>
+
+            <article class="post">
+                <h2 class="title">
+                    <a href="./deploy-gsad-behind-an-an-nginx-proxy.html" rel="bookmark" title="Permanent Link to &quot;Deploy gsad behind an an nginx proxy&quot;">Deploy gsad behind an an nginx proxy</a>
+                </h2>
+
+                <p><a href="http://www.openvas.org">OpenVAS</a> is a network vulnerability scanner published
+under the <a href="http://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html">GNU GPLv2</a>
+license. For those with difficulties to understand all those license legalese,
+this means your freedom is not impacted by this software. This license, allows
+you to do whatever you want with it as long as you do not restraint the freedom
+of others. This includes reading the source code, modifying it, using and
+distributing a modified version. You are just not allowed to distribute it
+under a more restrictive license. All this is allowed for OpenVAS at no
+extra-cost. Proprietary equivalences for OpenVAS includes <em>Nessus</em> from
+Tenable, or <em>Nexpose</em> from Rapid7.</p>
+<p>So, you have been toying with OpenVAS for some time, so far it does fit your
+needs, and you wanted to take it to the next level: deploy it seriously in your
+network. You realised it quickly, the main interface is the gsad, and it is
+web-based. You have been deploying a few web-applications before, so you are
+familiar with the configuration of <a href="http://nginx.org/">nginx</a> (or any similar
+proxy), you maybe even have a CDN running somewhere on your network, and you
+could not imagine deploy yet another web-based application without bringing all
+that knowledge you previously gathered into practice once more.</p>
+<p>You are at the right place, as this article will take you through the
+installation of the gsad service, and will leave the serving of static assets
+to the experts.</p>
+<h2>Rebuild the service</h2>
+<blockquote>
+<p><strong>note</strong></p>
+<p>This step is not absolutely necessary, but it does not make much sense to
+leave the internal file server (together with its integrated vulnerabilities)
+running if you do not plan to use it.</p>
+</blockquote>
+<p>The first necessary step is to disable the internal file server of the gsad
+service. To do so, just add the following to your cmake invocation
+<code>-DSERVE_STATIC_ASSETS=0</code> and rebuild the daemon. Do not forget to at least set
+the <code>CMAKE_BUILD_TYPE</code> to <code>Release</code> as well. Just <code>make install</code>, and you are
+done for this part.</p>
+<h2>Give the right parameters to the gsad service</h2>
+<p>The following step is about disabling the TLS negotiation. The <code>--http-only</code>
+parameters is there for that purpose.</p>
+<p>Additionally, we will use a unix socket to communicate between our proxy and
+the gsad service. We use for that the <code>--unix-socket=/var/run/gsad.sock</code>
+parameter. The gsad service will make sure to leave the rights on that socket
+unchanged, so if you need some special ones, just create the socket beforehand,
+and set the permissions on it as you wish. The actual path you use is not
+relevant as long as you give the same one to your proxy configuration.</p>
+<blockquote>
+<p><strong>note</strong></p>
+<p>As we do not plan to make any direct file access from the gsad service, it
+does no make much sense to use the <code>--do-chroot</code> parameter, and as we do not
+need to open any privileged port, the <code>--drop-privilege</code> one is not necessary
+either. We can already start with lowered privileges.</p>
+</blockquote>
+<h2>Configure your proxy</h2>
+<p>Comes the last part: teaching the proxy (in our case, nginx) to communicate
+with the service. Here comest the time where you might want to configure the
+TLS negotiation, or just leave it away if you are in a trusted zone anyway, and
+you do not want to bother with certificates. gsad comes with two <em>faces</em>, we
+will use here the <code>classic</code> one. If you compiled your gsad locally, the files
+will be installed under the following path:
+<code>/usr/local/share/openvas/gsa/classic</code>. Those are the files you will want to
+serve directly. There are three directories in there: <code>js</code>, <code>css</code>, and <code>img</code>.
+For the gsad service, there are at least two extra header fields you will want
+to set via your proxy:</p>
+<p><code>X-Real-IP</code>: OpenVAS will use this IP instead of the IP of the proxy to
+identify the session, and propose some shortcut like in the task creation
+Wizard.</p>
+<p><code>X-Forwarded-Protocol</code>: This will be used as the protocol when the redirect URL
+needs to be formed.</p>
+<p>You might want to set <code>Host</code> and <code>X-Forwarded-For</code> as well, but gsad is not
+parsing them (yet ?) at this moment.</p>
+<p>As a last point, if you are configuring your proxy to serve gsad over
+HTTPS, you probably also want to setup a redirect in your proxy
+configuration as well. I believe the right HTTP code to use here is 301
+Moved Permanently. It will be cached by other proxies, and will only
+create troubles if you ever want to stop delivering the gsad over HTTPS.</p>
+<h2>Files</h2>
+<p><strong>gsad.conf</strong>:</p>
+<div class="highlight"><pre><span></span><span class="nt">upstream</span> <span class="nt">gsa</span> <span class="p">{</span> <span class="err">server</span> <span class="n">unix</span><span class="p">:</span><span class="o">///</span><span class="n">var</span><span class="o">/</span><span class="n">run</span><span class="o">/</span><span class="n">gsad</span><span class="o">.</span><span class="n">sock</span><span class="p">;</span> <span class="p">}</span>
+
+<span class="nt">server</span> <span class="p">{</span>
+  <span class="n">listen</span> <span class="cp">[</span><span class="p">::</span><span class="cp">]</span><span class="p">:</span><span class="mi">80</span> <span class="n">ipv6only</span><span class="o">=</span><span class="kc">off</span><span class="p">;</span>
+  <span class="err">return</span> <span class="err">301</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="err">$</span><span class="n">host</span><span class="err">$</span><span class="n">request_uri</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nt">server</span> <span class="p">{</span>
+
+  <span class="n">listen</span> <span class="cp">[</span><span class="p">::</span><span class="cp">]</span><span class="p">:</span><span class="mi">443</span> <span class="n">ssl</span> <span class="n">ipv6only</span><span class="o">=</span><span class="kc">off</span><span class="p">;</span>
+
+  <span class="err">ssl_certificate</span>     <span class="err">/usr/local/var/lib/openvas/CA/servercert.pem</span><span class="p">;</span>
+  <span class="err">ssl_certificate_key</span> <span class="err">/usr/local/var/lib/openvas/private/CA/serverkey.pem</span><span class="p">;</span>
+
+
+  <span class="err">root</span> <span class="err">/usr/local/share/openvas/gsa/classic</span><span class="p">;</span>
+
+  <span class="err">location</span> <span class="err">~</span> <span class="err">^/(js/|css/|img/)</span> <span class="err">{</span>
+    <span class="err">root</span> <span class="err">/usr/local/share/openvas/gsa/classic</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="nt">location</span> <span class="o">/</span> <span class="p">{</span>
+    <span class="err">proxy_pass</span> <span class="n">http</span><span class="p">:</span><span class="o">//</span><span class="n">gsa</span><span class="p">;</span>
+    <span class="err">proxy_set_header</span> <span class="err">Host</span> <span class="err">$http_host</span><span class="p">;</span>
+    <span class="err">proxy_set_header</span> <span class="err">X-Forwarded-For</span> <span class="err">$proxy_add_x_forwarded_for</span><span class="p">;</span>
+    <span class="err">proxy_set_header</span> <span class="err">X-Forwarded-Protocol</span> <span class="err">$scheme</span><span class="p">;</span>
+    <span class="err">proxy_set_header</span> <span class="err">X-Real-IP</span> <span class="err">$remote_addr</span><span class="p">;</span>
+  <span class="p">}</span>
+
+<span class="err">}</span>
+</pre></div>
+
+
+<p><strong>gsad.service</strong>:</p>
+<div class="highlight"><pre><span></span><span class="k">[Unit]</span>
+<span class="na">Documentation</span><span class="o">=</span><span class="s">man:gsad(8) http://www.openvas.org/</span>
+<span class="na">Wants</span><span class="o">=</span><span class="s">openvas-manager.service</span>
+
+<span class="k">[Service]</span>
+<span class="na">Type</span><span class="o">=</span><span class="s">simple</span>
+<span class="na">ExecStart</span><span class="o">=</span><span class="s">/usr/local/sbin/gsad --foreground --http-only --unix-socket=/var/run/gsad.sock</span>
+<span class="na">Environment</span><span class="o">=</span><span class="s">LD_LIBRARY_PATH=/usr/local/lib</span>
+<span class="na">Restart</span><span class="o">=</span><span class="s">always</span>
+
+<span class="k">[Install]</span>
+<span class="na">WantedBy</span><span class="o">=</span><span class="s">multi-user.target</span>
+</pre></div>
+                <div class="clear"></div>
+
+                <div class="info">
+                    <a href="./author/benoit-allard.html">Benoît Allard</a>
+                    &nbsp;&middot;&nbsp;<a href="./category/openvas.html" rel="tag">OpenVAS</a>
+                    &nbsp;&middot;
+                    &nbsp;<a href="./tag/openvas.html" class="tags">OpenVAS</a>
+                    &nbsp;<a href="./tag/nginx.html" class="tags">NGINX</a>
+                </div>
+            </article>
+            <div class="clear"></div>
+            <footer>
+                <p>
+                <a href="https://github.com/jody-frankowski/blue-penguin">Blue Penguin</a> Theme
+                &middot;
+                Powered by <a href="http://getpelican.com">Pelican</a>
+                &middot;
+                <a href="./feeds/all.atom.xml" rel="alternate">Atom Feed</a>
+            </footer>
+        </div>
+        <div class="clear"></div>
+    </div>
+</body>
+</html>

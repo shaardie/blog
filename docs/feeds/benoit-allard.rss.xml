@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0"><channel><title>blog.haardiek.org - Benoît Allard</title><link>http://blog.haardiek.org/</link><description></description><lastBuildDate>Sat, 30 Apr 2016 00:00:00 +0200</lastBuildDate><item><title>Deploy gsad behind an an nginx proxy</title><link>http://blog.haardiek.org/deploy-gsad-behind-an-an-nginx-proxy.html</link><description>&lt;p&gt;&lt;a href="http://www.openvas.org"&gt;OpenVAS&lt;/a&gt; is a network vulnerability scanner published
+under the &lt;a href="http://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html"&gt;GNU GPLv2&lt;/a&gt;
+license. For those with difficulties to understand all those license legalese,
+this means your freedom is not impacted by this software. This license, allows
+you to do whatever you want with it as long as you do not restraint …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Benoît Allard</dc:creator><pubDate>Sat, 30 Apr 2016 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:blog.haardiek.org,2016-04-30:/deploy-gsad-behind-an-an-nginx-proxy.html</guid><category>OpenVAS</category><category>NGINX</category></item></channel></rss>
