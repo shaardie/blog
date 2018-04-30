@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        <meta charset="utf-8" />
+    <title>blog.haardiek.org | Using set -o errexit in bash script</title>
+    <link rel="shortcut icon" type="image/png" href="../favicon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="../favicon.ico">
+    <link href="https://blog.haardiek.org/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="blog.haardiek.org Full Atom Feed" />
+    <link href="https://blog.haardiek.org/feeds/shell.atom.xml" type="application/atom+xml" rel="alternate" title="blog.haardiek.org Categories Atom Feed" />
+    <link rel="stylesheet" href="../theme/css/screen.css" type="text/css" />
+    <link rel="stylesheet" href="../theme/css/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../theme/css/print.css" type="text/css" media="print" />
+    <meta name="generator" content="Pelican" />
+
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href="..">Home</a></li>
+                <li><a href="../authors">Authors</a></li>
+            </ul>
+        </nav>
+        <div class="header_box">
+            <h1><a href="..">blog.haardiek.org</a></h1>
+        </div>
+    </header>
+    <div id="wrapper">
+        <div id="content">            <h4 class="date">Apr 30, 2016</h4>
+
+            <article class="post">
+                <h2 class="title">
+                    <a href="../drafts/using-set-o-errexit-in-bash-script.html" rel="bookmark" title="Permanent Link to &quot;Using set -o errexit in bash script&quot;">Using set -o errexit in bash script</a>
+                </h2>
+
+                <h2>Unexpected behaviour</h2>
+<p><strong>noset-e</strong>:</p>
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3</pre></div></td><td class="code"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
+mv input output <span class="p">&amp;</span>&gt; /dev/null
+<span class="nb">echo</span> <span class="s2">&quot;Append this to the file&quot;</span> &gt;&gt; output
+</pre></div>
+</td></tr></table>
+
+<p>We now look at the output:</p>
+<div class="highlight"><pre><span></span>$ ./noset-e
+$ <span class="nb">echo</span> <span class="nv">$?</span>
+<span class="m">0</span>
+$ cat output
+Append this to the file
+$ <span class="nb">echo</span> <span class="s2">&quot;This is the input file&quot;</span> &gt; input
+$ ./noset-e
+$ <span class="nb">echo</span> <span class="nv">$?</span>
+<span class="m">0</span>
+$ cat output
+This is the input file
+Append this to the file
+</pre></div>
+
+
+<p><strong>set-e</strong>:</p>
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4</pre></div></td><td class="code"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
+<span class="nb">set</span> -o errexit  <span class="c1"># or shot set -e</span>
+mv input output <span class="p">&amp;</span>&gt; /dev/null
+<span class="nb">echo</span> <span class="s2">&quot;Append this to the file&quot;</span> &gt;&gt; output
+</pre></div>
+</td></tr></table>
+
+<p>And again the output:</p>
+<div class="highlight"><pre><span></span>$ ./set-e
+$ <span class="nb">echo</span> <span class="nv">$?</span>
+<span class="m">1</span>
+$ cat output
+cat: output: No such file or directory
+$ <span class="nb">echo</span> <span class="s2">&quot;This is the input file&quot;</span> &gt; input
+$ ./set-e
+$ <span class="nb">echo</span> <span class="nv">$?</span>
+<span class="m">0</span>
+$ cat output
+This is the input file
+Append this to the file
+</pre></div>
+
+
+<h2>Using traps</h2>
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14</pre></div></td><td class="code"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
+
+<span class="nb">set</span> -o errexit
+
+<span class="c1"># Create a trap to remove the temporary file he temporary file again</span>
+<span class="nb">trap</span> <span class="s1">&#39;rm tmp&#39;</span> EXIT
+
+<span class="c1"># Create a temporary file</span>
+touch tmp
+
+<span class="c1"># Here the script always fail</span>
+<span class="nb">false</span>
+
+<span class="nb">echo</span> <span class="s2">&quot;This never runs&quot;</span>
+</pre></div>
+</td></tr></table>
+                <div class="clear"></div>
+
+                <div class="info">
+                    <a href="../author/sven-haardiek.html">Sven Haardiek</a>
+                    &nbsp;&middot;&nbsp;<a href="../category/shell.html" rel="tag">Shell</a>
+                </div>
+            </article>
+            <div class="clear"></div>
+            <footer>
+                <p>
+                <a href="https://github.com/jody-frankowski/blue-penguin">Blue Penguin</a> Theme
+                &middot;
+                Powered by <a href="http://getpelican.com">Pelican</a>
+                &middot;
+                <a href="../feeds/all.atom.xml" rel="alternate">Atom Feed</a>
+            </footer>
+        </div>
+        <div class="clear"></div>
+    </div>
+</body>
+</html>

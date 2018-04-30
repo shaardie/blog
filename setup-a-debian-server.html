@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        <meta charset="utf-8" />
+    <title>blog.haardiek.org | Setup a Debian Server</title>
+    <link rel="shortcut icon" type="image/png" href="./favicon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="./favicon.ico">
+    <link href="https://blog.haardiek.org/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="blog.haardiek.org Full Atom Feed" />
+    <link href="https://blog.haardiek.org/feeds/debian.atom.xml" type="application/atom+xml" rel="alternate" title="blog.haardiek.org Categories Atom Feed" />
+    <link rel="stylesheet" href="./theme/css/screen.css" type="text/css" />
+    <link rel="stylesheet" href="./theme/css/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="./theme/css/print.css" type="text/css" media="print" />
+    <meta name="generator" content="Pelican" />
+
+    <meta name="keywords" content="Debian,Server" />
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href=".">Home</a></li>
+                <li><a href="./authors">Authors</a></li>
+            </ul>
+        </nav>
+        <div class="header_box">
+            <h1><a href=".">blog.haardiek.org</a></h1>
+        </div>
+    </header>
+    <div id="wrapper">
+        <div id="content">            <h4 class="date">Jan 20, 2016</h4>
+
+            <article class="post">
+                <h2 class="title">
+                    <a href="./setup-a-debian-server.html" rel="bookmark" title="Permanent Link to &quot;Setup a Debian Server&quot;">Setup a Debian Server</a>
+                </h2>
+
+                <p>Some time ago I decided to reinstall my root server from
+<a href="https://www.netcup.de">Netcup</a>. I chose <a href="https://www.debian.org">Debian
+Jessie</a> as the operating system, because i have the
+most experience with Debian.</p>
+<p>In the following I will give a guide to my setup.</p>
+<h2>Base Image</h2>
+<p>It is possible to use the <a href="https://www.vservercontrolpanel.de/Home">Netcup Server Control
+Panel</a> to install the base system on
+your server. There you can easily click through the different options. Of
+course you have to use the minimal Debian Jessie installation.  After that you
+can choose between different predefined partitions. If you have no special
+wishes, choose one great partition. So you can use the whole space without
+having to partition something manually. At least use the mail notification. So
+after your server is installed you got a mail with the long randomly set root
+password.</p>
+<p>You can log in with this password using the command</p>
+<div class="highlight"><pre><span></span>ssh root@&lt;hostname&gt;
+</pre></div>
+
+
+<p>on your preferred terminal emulator and take a first look at your fresh
+installed operating system.</p>
+<p>As a first step you should change the root password by using the</p>
+<div class="highlight"><pre><span></span>passwd
+</pre></div>
+
+
+<p>command.</p>
+<h2>User</h2>
+<p>In my opinion it is not a good idea to use the <em>root</em> user to configure a
+server. So you should create a new user <em>username</em> with</p>
+<div class="highlight"><pre><span></span>adduser &lt;username&gt;
+</pre></div>
+
+
+<p>You can use this user to configure also services and other stuff so you should
+add this user to the group sudo. The minimal image of netcup do not have sudo
+installed, so you have to install it manually</p>
+<div class="highlight"><pre><span></span>apt-get install sudo
+</pre></div>
+
+
+<p>and then add <em>username</em> to the group sudo</p>
+<div class="highlight"><pre><span></span>adduser &lt;username&gt; sudo
+</pre></div>
+
+
+<p>Now you can log out your server by using</p>
+<div class="highlight"><pre><span></span>exit
+</pre></div>
+
+
+<p>or using <code>Ctrl-D</code> and log in again with your user</p>
+<div class="highlight"><pre><span></span>ssh &lt;username&gt;@hostname
+</pre></div>
+
+
+<p>A password enabled log in is a security issue, so you should configure the SSH
+server to disable it as described next.</p>
+<h2>SSH Configuration</h2>
+<p>So now we want to configure SSH. First we create a SSH key on the computer we
+want to connect to the server.</p>
+<div class="highlight"><pre><span></span>ssh-keygen -t rsa -b 4096
+</pre></div>
+
+
+<p>Now copy the output of</p>
+<div class="highlight"><pre><span></span>cat ~/.ssh/id_rsa.pub
+</pre></div>
+
+
+<p>to the file <code>/home/&lt;username&gt;/.ssh/authorized_keys</code>. If the directory
+<code>/home/&lt;username&gt;/.ssh</code> does not exists, you can create it by executing</p>
+<div class="highlight"><pre><span></span>mkdir /home/&lt;username&gt;/.ssh
+</pre></div>
+
+
+<p>Now you can check, if you can log in the server without using a password
+(except the password you set for the ssh key).</p>
+<p>Since the ssh keys are generated during the installation done by netcup, you should renew them with</p>
+<div class="highlight"><pre><span></span>sudo rm /etc/ssh/ssh_host_*
+sudo dpkg-reconfigure openssh-server
+</pre></div>
+
+
+<p>Edit <code>/etc/ssh/sshd_config</code> with your favorite editor (vim, nano, ...) and set <code>PermitRootLogin</code> and PasswordAuthentication <code>no</code>. To enable these changes restart SSH by</p>
+<div class="highlight"><pre><span></span>systemctl restart ssh
+</pre></div>
+
+
+<h2>Firewall</h2>
+<p>And last you should install a firewall. For simple configuration I would choose
+<a href="https://launchpad.net/ufw">ufw</a>, because it is very easy to configure. So to install ufw use</p>
+<div class="highlight"><pre><span></span>sudo apt-get install ufw
+</pre></div>
+
+
+<p>Now you should configure the firewall. As a simple setup i would recommend a firewall configuration that denies per default all communication, enable the logging and of course enable communication via ssh. This configuration is achieved by the following commands</p>
+<div class="highlight"><pre><span></span>sudo ufw default deny
+sudo ufw logging on
+sudo ufw allow ssh/tcp
+sudo ufw enable
+</pre></div>
+
+
+<h2>Final Words</h2>
+<p>Now you should have a basic installation of a debian server to have fun with.
+So long...</p>
+                <div class="clear"></div>
+
+                <div class="info">
+                    <a href="./author/sven-haardiek.html">Sven Haardiek</a>
+                    &nbsp;&middot;&nbsp;<a href="./category/debian.html" rel="tag">Debian</a>
+                    &nbsp;&middot;
+                    &nbsp;<a href="./tag/debian.html" class="tags">Debian</a>
+                    &nbsp;<a href="./tag/server.html" class="tags">Server</a>
+                </div>
+            </article>
+            <div class="clear"></div>
+            <footer>
+                <p>
+                <a href="https://github.com/jody-frankowski/blue-penguin">Blue Penguin</a> Theme
+                &middot;
+                Powered by <a href="http://getpelican.com">Pelican</a>
+                &middot;
+                <a href="./feeds/all.atom.xml" rel="alternate">Atom Feed</a>
+            </footer>
+        </div>
+        <div class="clear"></div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>blog.haardiek.org</title>
+    <link rel="shortcut icon" type="image/png" href="./favicon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="./favicon.ico">
+    <link href="https://blog.haardiek.org/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="blog.haardiek.org Full Atom Feed" />
+    <link rel="stylesheet" href="./theme/css/screen.css" type="text/css" />
+    <link rel="stylesheet" href="./theme/css/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="./theme/css/print.css" type="text/css" media="print" />
+    <meta name="generator" content="Pelican" />
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li class="selected"><a href=".">Home</a></li>
+                <li><a href="./authors">Authors</a></li>
+            </ul>
+        </nav>
+        <div class="header_box">
+            <h1><a href=".">blog.haardiek.org</a></h1>
+        </div>
+    </header>
+    <div id="wrapper">
+        <div id="content"><h4 class="date">Jun 17, 2017</h4>
+<article class="post">
+<h2 class="title">
+    <a href="./setup-openvas-as-master-and-slave.html" rel="bookmark" title="Permanent Link to &quot;Setup OpenVAS as Master and Slave&quot;">Setup OpenVAS as Master and Slave</a>
+</h2>
+
+<p>Did you ever want to connect your different <a href="http://openvas.org/">OpenVAS</a>
+installations and have all information about the vulnerabilities one one spot?
+Or do you have very strict network policies and want scan a separate
+sub-network, but do not want to browse your vulnerability in this sub-network?
+Well, this is possible by …</p>
+<div class="info">
+    <a href="./author/sven-haardiek.html">Sven Haardiek</a>
+&nbsp;&middot;&nbsp;<a href="./category/openvas.html" rel="tag">OpenVAS</a>
+&nbsp;&middot;
+&nbsp;<a href="./tag/openvas.html" class="tags">OpenVAS</a>
+</div>
+</article>
+<h4 class="date">Jan 07, 2017</h4>
+<article class="post">
+<h2 class="title">
+    <a href="./infinite-sets-in-go.html" rel="bookmark" title="Permanent Link to &quot;Infinite Sets in Go&quot;">Infinite Sets in Go</a>
+</h2>
+
+<p>If you are too lazy to read, but interested in using finite and infinite sets
+in Go, just take a look at the <a href="https://godoc.org/github.com/shaardie/set">documentation</a> or directly at the
+<a href="https://github.com/shaardie/set">source</a> of the library which inspired this article.</p>
+<p>Some time ago I was working with Go and was missing the concept of …</p>
+<div class="info">
+    <a href="./author/sven-haardiek.html">Sven Haardiek</a>
+&nbsp;&middot;&nbsp;<a href="./category/golang.html" rel="tag">Golang</a>
+&nbsp;&middot;
+&nbsp;<a href="./tag/golang.html" class="tags">Golang</a>
+</div>
+</article>
+<h4 class="date">Apr 30, 2016</h4>
+<article class="post">
+<h2 class="title">
+    <a href="./deploy-gsad-behind-an-an-nginx-proxy.html" rel="bookmark" title="Permanent Link to &quot;Deploy gsad behind an an nginx proxy&quot;">Deploy gsad behind an an nginx proxy</a>
+</h2>
+
+<p><a href="http://www.openvas.org">OpenVAS</a> is a network vulnerability scanner published
+under the <a href="http://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html">GNU GPLv2</a>
+license. For those with difficulties to understand all those license legalese,
+this means your freedom is not impacted by this software. This license, allows
+you to do whatever you want with it as long as you do not restraint …</p>
+<div class="info">
+    <a href="./author/benoit-allard.html">Benoît Allard</a>
+&nbsp;&middot;&nbsp;<a href="./category/openvas.html" rel="tag">OpenVAS</a>
+&nbsp;&middot;
+&nbsp;<a href="./tag/openvas.html" class="tags">OpenVAS</a>
+&nbsp;<a href="./tag/nginx.html" class="tags">NGINX</a>
+</div>
+</article>
+<h4 class="date">Mar 03, 2016</h4>
+<article class="post">
+<h2 class="title">
+    <a href="./using-ansible-to-set-up-a-debian-server.html" rel="bookmark" title="Permanent Link to &quot;Using Ansible to set up a Debian Server&quot;">Using Ansible to set up a Debian Server</a>
+</h2>
+
+<p>In my last blog entry <a href="https://blog.haardiek.org/setup-a-debian-server.html">Setup a Debian
+Server</a> I described a
+basic setup for a server running <a href="https://www.debian.org">Debian Jessie</a>. Now I
+want to talk about setting up the same server but using
+<a href="https://www.ansible.com">Ansible</a>. This is more or less an extension of the
+other blog entry, but could be used …</p>
+<div class="info">
+    <a href="./author/sven-haardiek.html">Sven Haardiek</a>
+&nbsp;&middot;&nbsp;<a href="./category/ansible.html" rel="tag">Ansible</a>
+&nbsp;&middot;
+&nbsp;<a href="./tag/debian.html" class="tags">Debian</a>
+&nbsp;<a href="./tag/server.html" class="tags">Server</a>
+&nbsp;<a href="./tag/ansible.html" class="tags">Ansible</a>
+</div>
+</article>
+<h4 class="date">Jan 20, 2016</h4>
+<article class="post">
+<h2 class="title">
+    <a href="./setup-a-debian-server.html" rel="bookmark" title="Permanent Link to &quot;Setup a Debian Server&quot;">Setup a Debian Server</a>
+</h2>
+
+<p>Some time ago I decided to reinstall my root server from
+<a href="https://www.netcup.de">Netcup</a>. I chose <a href="https://www.debian.org">Debian
+Jessie</a> as the operating system, because i have the
+most experience with Debian.</p>
+<p>In the following I will give a guide to my setup.</p>
+<h2>Base Image</h2>
+<p>It is possible to use the <a href="https://www.vservercontrolpanel.de/Home">Netcup Server Control …</a></p>
+<div class="info">
+    <a href="./author/sven-haardiek.html">Sven Haardiek</a>
+&nbsp;&middot;&nbsp;<a href="./category/debian.html" rel="tag">Debian</a>
+&nbsp;&middot;
+&nbsp;<a href="./tag/debian.html" class="tags">Debian</a>
+&nbsp;<a href="./tag/server.html" class="tags">Server</a>
+</div>
+</article>
+
+            <div class="clear"></div>
+            <footer>
+                <p>
+                <a href="https://github.com/jody-frankowski/blue-penguin">Blue Penguin</a> Theme
+                &middot;
+                Powered by <a href="http://getpelican.com">Pelican</a>
+                &middot;
+                <a href="./feeds/all.atom.xml" rel="alternate">Atom Feed</a>
+            </footer>
+        </div>
+        <div class="clear"></div>
+    </div>
+</body>
+</html>
